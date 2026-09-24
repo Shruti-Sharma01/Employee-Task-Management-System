@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Employee Task Manager</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+    <header class="navbar">
+        <div class="navbar-brand">
+            <img src="images/logo.png" alt="Logo" class="logo-small">
+            <span>Task Manager</span>
+        </div>
+        <nav class="navbar-links">
+            <a href="dashboard.html">Dashboard</a>
+            <a href="tasks.html">Tasks</a>
+            <a href="profile.html" class="active">Profile</a>
+            <a href="login.html">Logout</a>
+        </nav>
+        <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">&#9776;</button>
+    </header>
+
+    <div class="layout">
+
+        <aside class="sidebar" id="sidebar">
+            <ul>
+                <li><a href="dashboard.html">Dashboard</a></li>
+                <li><a href="tasks.html">My Tasks</a></li>
+                <li><a href="profile.html">Profile</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+
+            <h1>My Profile</h1>
+
+            <section class="profile-card">
+                <img src="images/profile.png" alt="Profile Picture" class="profile-picture" id="profilePicture">
+
+                <dl class="profile-details">
+                    <dt>Name</dt>
+                    <dd id="profileName">—</dd>
+
+                    <dt>Email</dt>
+                    <dd id="profileEmail">—</dd>
+
+                    <dt>Department</dt>
+                    <dd id="profileDepartment">—</dd>
+
+                    <dt>Role</dt>
+                    <dd id="profileRole">—</dd>
+
+                    <dt>Total Completed Tasks</dt>
+                    <dd id="profileCompletedCount">0</dd>
+                </dl>
+
+                <button class="btn btn-secondary" id="editProfileBtn">Edit Profile</button>
+            </section>
+
+        </main>
+
+    </div>
+
+    <script src="js/storage.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/profile.js"></script>
+</body>
+</html>

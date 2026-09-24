@@ -1,0 +1,182 @@
+/* 1. Prevent Edge / Chrome native eye icon from overlapping */
+input::-ms-reveal,
+input::-ms-clear,
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* 2. Page Background */
+.login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(160deg, #1E2A44 0%, #2A3A63 100%);
+    padding: var(--space-md, 16px);
+}
+
+/* 3. Normal Solid White Card */
+.login-container {
+    background-color: #FFFFFF;
+    border-radius: var(--radius-md, 12px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    padding: var(--space-xl, 32px);
+    width: 100%;
+    max-width: 390px;
+}
+
+/* 4. Header */
+.login-header {
+    text-align: center;
+    margin-bottom: var(--space-xl, 24px);
+}
+
+.login-header h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: var(--space-xs, 4px);
+    color: #1F2937;
+}
+
+.login-header p {
+    color: #6B7280;
+    font-size: 0.9rem;
+}
+
+/* 5. Inputs & Labels */
+.form-group {
+    margin-bottom: var(--space-md, 16px);
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-bottom: var(--space-xs, 5px);
+    color: #374151;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"] {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #D1D5DB;
+    border-radius: var(--radius-sm, 6px);
+    background-color: #FFFFFF;
+    font-size: 0.95rem;
+    color: #1F2937;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus {
+    border-color: #4F46E5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+/* 6. Password Field & Show/Hide Button */
+.password-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.password-wrapper input {
+    padding-right: 65px !important; 
+}
+
+.toggle-password {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #4F46E5;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+}
+
+.toggle-password:hover {
+    opacity: 0.8;
+}
+
+/* 7. Form Options */
+.form-options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+    margin-bottom: var(--space-md, 16px);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: #374151;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    accent-color: #4F46E5;
+    cursor: pointer;
+}
+
+.forgot-link {
+    font-size: 0.85rem;
+    color: #4F46E5;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.forgot-link:hover {
+    text-decoration: underline;
+}
+
+/* 8. Button & Footer */
+.login-container .btn-primary {
+    width: 100%;
+    padding: 12px;
+    background-color: #4F46E5;
+    color: #FFFFFF;
+    border: none;
+    border-radius: var(--radius-sm, 6px);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.login-container .btn-primary:hover {
+    background-color: #4338CA;
+}
+
+.login-footer-text {
+    margin-top: var(--space-lg, 20px);
+    text-align: center;
+    font-size: 0.78rem;
+    color: #6B7280;
+    line-height: 1.4;
+}
+
+/* 9. Errors */
+.error-message {
+    display: none;
+    color: #DC2626;
+    font-size: 0.78rem;
+    margin-top: 4px;
+}
+
+input.input-error {
+    border-color: #DC2626 !important;
+    background-color: #FFF5F5 !important;
+}

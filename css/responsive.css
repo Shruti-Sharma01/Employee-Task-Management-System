@@ -1,0 +1,103 @@
+/* ---------------------------------------------------------
+   TABLET  (screens 1024px and narrower — laptops, iPads landscape)
+   --------------------------------------------------------- */
+@media (max-width: 1024px) {
+
+    .stats-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .sidebar {
+        width: 180px; /* still visible, just narrower */
+    }
+
+    .main-content {
+        padding: var(--space-lg);
+    }
+}
+
+/* ---------------------------------------------------------
+   MOBILE  (screens 640px and narrower — phones)
+   --------------------------------------------------------- */
+@media (max-width: 640px) {
+
+    /* --- Stat cards: single column, stacked --- */
+    .stats-cards {
+        grid-template-columns: 1fr;
+    }
+
+    /* --- Navbar: hide the inline link list, show the hamburger --- */
+    .navbar-links {
+        display: none;
+    }
+
+    .nav-toggle {
+        display: block;
+    }
+
+
+    .sidebar {
+        position: fixed;
+        top: 64px; /* below the navbar */
+        left: 0;
+        bottom: 0;
+        width: 220px;
+        transform: translateX(-100%);
+        z-index: 100;
+        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    /* Dim the page behind the drawer when it's open */
+    .sidebar-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        top: 64px;
+        background-color: rgba(15, 23, 42, 0.4);
+        z-index: 99;
+    }
+
+    .sidebar-backdrop.open {
+        display: block;
+    }
+
+    .layout {
+        flex-direction: column; /* sidebar no longer sits beside main-content */
+    }
+
+    .main-content {
+        padding: var(--space-md);
+    }
+
+    /* --- Search & filter bar: stack vertically instead of a row --- */
+    .search-filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-filter-bar .form-group,
+    .search-filter-bar .form-group:first-child {
+        flex: none;
+        min-width: 0;
+    }
+
+    .task-list-container {
+        overflow-x: auto;
+    }
+
+    .tasks-table {
+        min-width: 600px; 
+    }
+
+    .login-container {
+        padding: var(--space-lg);
+    }
+
+    .profile-details {
+        grid-template-columns: 1fr;
+    }
+}

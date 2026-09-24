@@ -1,0 +1,460 @@
+:root {
+    /* Brand colors */
+    --color-primary: #4F46E5;       /* indigo — primary actions */
+    --color-primary-dark: #4338CA;  /* hover state */
+    --color-sidebar: #1E2A44;       /* deep slate navy */
+    --color-sidebar-hover: #29385C;
+
+    /* Status colors (used for priority + task status badges) */
+    --color-success: #16A34A;
+    --color-success-bg: #DCFCE7;
+    --color-warning: #D97706;
+    --color-warning-bg: #FEF3C7;
+    --color-danger: #DC2626;
+    --color-danger-bg: #FEE2E2;
+    --color-info: #2563EB;
+    --color-info-bg: #DBEAFE;
+
+    /* Neutrals */
+    --color-bg: #F5F6FA;
+    --color-surface: #FFFFFF;
+    --color-border: #E2E5EC;
+    --color-text: #1F2937;
+    --color-text-muted: #6B7280;
+
+    /* Typography */
+    --font-heading: 'Poppins', 'Segoe UI', sans-serif;
+    --font-body: 'Inter', 'Segoe UI', sans-serif;
+
+    /* Spacing scale — reuse instead of inventing random px values */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 40px;
+
+    /* Shape */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --shadow-card: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+/* ---------------------------------------------------------
+   2. RESET / BASE
+   --------------------------------------------------------- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box; 
+}
+
+body {
+    font-family: var(--font-body);
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.5;
+}
+
+h1, h2, h3, h4 {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+h1 { font-size: 1.75rem; margin-bottom: var(--space-lg); }
+h2 { font-size: 1.25rem; margin-bottom: var(--space-md); }
+h3 { font-size: 1rem; color: var(--color-text-muted); font-weight: 500; }
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+ul {
+    list-style: none;
+}
+
+/* ---------------------------------------------------------
+   3. BUTTONS
+   --------------------------------------------------------- */
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s ease, transform 0.05s ease;
+}
+
+.btn:active {
+    transform: scale(0.98); /* subtle press feedback */
+}
+
+.btn-primary {
+    background-color: var(--color-primary);
+    color: #FFFFFF;
+}
+.btn-primary:hover {
+    background-color: var(--color-primary-dark);
+}
+
+.btn-secondary {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    border-color: var(--color-border);
+}
+.btn-secondary:hover {
+    background-color: var(--color-bg);
+}
+
+.btn-danger {
+    background-color: var(--color-danger);
+    color: #FFFFFF;
+}
+.btn-danger:hover {
+    background-color: #B91C1C;
+}
+
+/* ---------------------------------------------------------
+   4. FORMS
+   --------------------------------------------------------- */
+.form-group {
+    margin-bottom: var(--space-md);
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-bottom: var(--space-xs);
+    color: var(--color-text-muted);
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group input[type="date"],
+.form-group input[type="email"],
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    background-color: var(--color-surface);
+    color: var(--color-text);
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); /* focus ring, accessibility */
+}
+
+.error-message {
+    display: block;
+    color: var(--color-danger);
+    font-size: 0.8rem;
+    margin-top: var(--space-xs);
+    min-height: 1em; 
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: 0.85rem;
+    color: var(--color-text);
+}
+
+/* ---------------------------------------------------------
+   4b. SEARCH & FILTER BAR 
+   --------------------------------------------------------- */
+.search-filter-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: var(--space-md);
+    flex-wrap: wrap; /* lets groups drop to a new line instead of squeezing */
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    margin: var(--space-lg) 0;
+}
+
+.search-filter-bar .form-group {
+    flex: 1;              
+    min-width: 140px;     
+    margin-bottom: 0;
+}
+
+/* Give the search box more room than the dropdown filters */
+.search-filter-bar .form-group:first-child {
+    flex: 2;
+    min-width: 200px;
+}
+
+/* ---------------------------------------------------------
+   5. NAVBAR
+   --------------------------------------------------------- */
+.navbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--color-sidebar);
+    color: #FFFFFF;
+    padding: var(--space-md) var(--space-lg);
+}
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-family: var(--font-heading);
+    font-weight: 600;
+}
+
+.logo-small { height: 28px; width: 28px; }
+.logo { height: 48px; width: 48px; margin-bottom: var(--space-sm); }
+
+.navbar-links {
+    display: flex;
+    gap: var(--space-lg);
+}
+
+.navbar-links a {
+    color: #C7CCE0;
+    font-size: 0.9rem;
+    padding: var(--space-xs) 0;
+    border-bottom: 2px solid transparent;
+}
+
+.navbar-links a.active,
+.navbar-links a:hover {
+    color: #FFFFFF;
+    border-bottom-color: var(--color-primary);
+}
+
+.nav-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: #FFFFFF;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+/* ---------------------------------------------------------
+   6. LAYOUT 
+   --------------------------------------------------------- */
+.layout {
+    display: flex;
+    min-height: calc(100vh - 64px);
+}
+
+.sidebar {
+    width: 220px;
+    background-color: var(--color-sidebar);
+    padding: var(--space-lg) 0;
+    flex-shrink: 0;
+    transition: transform 0.2s ease; /* used by the mobile off-canvas slide in responsive.css */
+}
+
+.sidebar a {
+    display: block;
+    padding: 12px var(--space-lg);
+    color: #C7CCE0;
+    font-size: 0.9rem;
+}
+
+.sidebar a:hover {
+    background-color: var(--color-sidebar-hover);
+    color: #FFFFFF;
+}
+
+.main-content {
+    flex: 1;
+    padding: var(--space-xl);
+}
+
+/* ---------------------------------------------------------
+   7. CARDS
+   --------------------------------------------------------- */
+.card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--space-lg);
+}
+
+/* ---------------------------------------------------------
+   8. TABLES
+   --------------------------------------------------------- */
+.tasks-table {
+    width: 100%;
+    border-collapse: collapse; /* removes double borders between cells */
+    background-color: var(--color-surface);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+}
+
+.tasks-table th,
+.tasks-table td {
+    text-align: left;
+    padding: 12px var(--space-md);
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.9rem;
+}
+
+.tasks-table th {
+    background-color: var(--color-bg);
+    color: var(--color-text-muted);
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.tasks-table tbody tr:hover {
+    background-color: var(--color-bg);
+}
+
+.badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px; /* pill shape */
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.badge-success { background-color: var(--color-success-bg); color: var(--color-success); }
+.badge-warning { background-color: var(--color-warning-bg); color: var(--color-warning); }
+.badge-danger  { background-color: var(--color-danger-bg);  color: var(--color-danger); }
+.badge-info    { background-color: var(--color-info-bg);    color: var(--color-info); }
+
+/* ---------------------------------------------------------
+   9. MODAL 
+   --------------------------------------------------------- */
+/* FIXED */
+.modal {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+[hidden],
+.modal[hidden] {
+    display: none !important;
+}
+
+.modal-content {
+    background-color: var(--color-surface);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    max-width: 360px;
+    box-shadow: var(--shadow-card);
+}
+
+.modal-content h3 { margin-bottom: var(--space-sm); }
+.modal-content p { color: var(--color-text-muted); margin-bottom: var(--space-lg); font-size: 0.9rem; }
+
+.modal-actions {
+    display: flex;
+    gap: var(--space-sm);
+    justify-content: flex-end;
+}
+
+/* ---------------------------------------------------------
+   9b. PROFILE CARD
+   --------------------------------------------------------- */
+.profile-card {
+    max-width: 480px;
+}
+
+.profile-picture {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: var(--space-lg);
+    border: 3px solid var(--color-border);
+}
+
+.profile-details {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    row-gap: var(--space-md);
+    column-gap: var(--space-lg);
+    margin-bottom: var(--space-lg);
+}
+
+.profile-details dt {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+.profile-details dd {
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+/* ---------------------------------------------------------
+   10. LANDING PAGE 
+   --------------------------------------------------------- */
+.landing {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+}
+
+.landing p {
+    color: var(--color-text-muted);
+    max-width: 400px;
+}
+
+/* Container to align Sign In and Create Account buttons */
+.landing-actions {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: var(--space-xs);
+}
+
+html {
+    overflow-y: scroll; 
+}
+
+.profile-picture {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: var(--space-lg);
+    border: 3px solid var(--color-border);
+    cursor: pointer;
+    /* Safe hover effect that does NOT shift layout boundaries */
+    transition: filter 0.2s ease, box-shadow 0.2s ease;
+}
+
+.profile-picture:hover {
+    filter: brightness(0.92);
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.25);
+}
