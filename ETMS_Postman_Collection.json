@@ -1,0 +1,466 @@
+{
+  "info": {
+    "name": "ETMS API",
+    "description": "Employee Task Management System - full API test sequence. Run requests top to bottom within each folder; tokens and IDs are saved automatically into collection variables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "admin_username", "value": "REPLACE_WITH_YOUR_SUPERUSER_USERNAME" },
+    { "key": "admin_password", "value": "REPLACE_WITH_YOUR_SUPERUSER_PASSWORD" },
+    { "key": "manager_username", "value": "jane" },
+    { "key": "manager_password", "value": "StrongPass#2026" },
+    { "key": "employee_username", "value": "john" },
+    { "key": "employee_password", "value": "StrongPass#2026" },
+    { "key": "admin_access", "value": "" },
+    { "key": "manager_access", "value": "" },
+    { "key": "employee_access", "value": "" },
+    { "key": "refresh_token", "value": "" },
+    { "key": "manager_user_id", "value": "" },
+    { "key": "employee_user_id", "value": "" },
+    { "key": "manager_employee_id", "value": "" },
+    { "key": "employee_employee_id", "value": "" },
+    { "key": "task_id", "value": "" },
+    { "key": "comment_id", "value": "" },
+    { "key": "attachment_id", "value": "" },
+    { "key": "notification_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Login - Admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"{{admin_username}}\",\n  \"password\": \"{{admin_password}}\"\n}" },
+            "url": { "raw": "{{base_url}}/api/auth/login/", "host": ["{{base_url}}"], "path": ["api","auth","login",""] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const data = pm.response.json().data;",
+            "pm.collectionVariables.set('admin_access', data.access);",
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ]}}]
+        },
+        {
+          "name": "Register - Manager (Jane)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"{{manager_username}}\",\n  \"email\": \"jane@example.com\",\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Smith\",\n  \"password\": \"{{manager_password}}\",\n  \"confirm_password\": \"{{manager_password}}\",\n  \"role\": \"MANAGER\"\n}" },
+            "url": { "raw": "{{base_url}}/api/auth/register/", "host": ["{{base_url}}"], "path": ["api","auth","register",""] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  pm.collectionVariables.set('manager_user_id', pm.response.json().data.id);",
+            "}",
+            "pm.test('Status 201', () => pm.response.to.have.status(201));"
+          ]}}]
+        },
+        {
+          "name": "Register - Employee (John)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"{{employee_username}}\",\n  \"email\": \"john@example.com\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"password\": \"{{employee_password}}\",\n  \"confirm_password\": \"{{employee_password}}\",\n  \"role\": \"EMPLOYEE\"\n}" },
+            "url": { "raw": "{{base_url}}/api/auth/register/", "host": ["{{base_url}}"], "path": ["api","auth","register",""] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  pm.collectionVariables.set('employee_user_id', pm.response.json().data.id);",
+            "}",
+            "pm.test('Status 201', () => pm.response.to.have.status(201));"
+          ]}}]
+        },
+        {
+          "name": "Login - Manager",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"{{manager_username}}\",\n  \"password\": \"{{manager_password}}\"\n}" },
+            "url": { "raw": "{{base_url}}/api/auth/login/", "host": ["{{base_url}}"], "path": ["api","auth","login",""] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const data = pm.response.json().data;",
+            "pm.collectionVariables.set('manager_access', data.access);",
+            "pm.collectionVariables.set('refresh_token', data.refresh);",
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ]}}]
+        },
+        {
+          "name": "Login - Employee",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"{{employee_username}}\",\n  \"password\": \"{{employee_password}}\"\n}" },
+            "url": { "raw": "{{base_url}}/api/auth/login/", "host": ["{{base_url}}"], "path": ["api","auth","login",""] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const data = pm.response.json().data;",
+            "pm.collectionVariables.set('employee_access', data.access);",
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ]}}]
+        },
+        {
+          "name": "Token Refresh",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}" },
+            "url": { "raw": "{{base_url}}/api/auth/token/refresh/", "host": ["{{base_url}}"], "path": ["api","auth","token","refresh",""] }
+          }
+        },
+        {
+          "name": "Get Profile - Employee",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/auth/profile/", "host": ["{{base_url}}"], "path": ["api","auth","profile",""] }
+          }
+        },
+        {
+          "name": "Change Password - Employee",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"old_password\": \"{{employee_password}}\",\n  \"new_password\": \"NewStrong#2027\",\n  \"confirm_new_password\": \"NewStrong#2027\"\n}" },
+            "url": { "raw": "{{base_url}}/api/auth/change-password/", "host": ["{{base_url}}"], "path": ["api","auth","change-password",""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Employees",
+      "item": [
+        {
+          "name": "Create Employee - Jane (Manager)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"user\": {{manager_user_id}},\n  \"employee_id\": \"EMP001\",\n  \"full_name\": \"Jane Smith\",\n  \"email\": \"jane@example.com\",\n  \"phone\": \"9876543210\",\n  \"department\": \"Engineering\",\n  \"designation\": \"Team Lead\",\n  \"joining_date\": \"2024-01-15\",\n  \"is_active\": true\n}" },
+            "url": { "raw": "{{base_url}}/api/employees/", "host": ["{{base_url}}"], "path": ["api","employees",""] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  pm.collectionVariables.set('manager_employee_id', pm.response.json().data.id);",
+            "}",
+            "pm.test('Status 201', () => pm.response.to.have.status(201));"
+          ]}}]
+        },
+        {
+          "name": "Create Employee - John (reports to Jane)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"user\": {{employee_user_id}},\n  \"employee_id\": \"EMP002\",\n  \"full_name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"department\": \"Engineering\",\n  \"designation\": \"Developer\",\n  \"manager\": {{manager_employee_id}},\n  \"joining_date\": \"2024-06-01\"\n}" },
+            "url": { "raw": "{{base_url}}/api/employees/", "host": ["{{base_url}}"], "path": ["api","employees",""] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  pm.collectionVariables.set('employee_employee_id', pm.response.json().data.id);",
+            "}",
+            "pm.test('Status 201', () => pm.response.to.have.status(201));"
+          ]}}]
+        },
+        {
+          "name": "List Employees",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/employees/", "host": ["{{base_url}}"], "path": ["api","employees",""] }
+          }
+        },
+        {
+          "name": "Get Employee Detail",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/employees/{{employee_employee_id}}/", "host": ["{{base_url}}"], "path": ["api","employees","{{employee_employee_id}}",""] }
+          }
+        },
+        {
+          "name": "Update Employee (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"designation\": \"Senior Developer\"\n}" },
+            "url": { "raw": "{{base_url}}/api/employees/{{employee_employee_id}}/", "host": ["{{base_url}}"], "path": ["api","employees","{{employee_employee_id}}",""] }
+          }
+        },
+        {
+          "name": "Filter by Department",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/employees/?department=Engineering", "host": ["{{base_url}}"], "path": ["api","employees",""], "query": [{ "key": "department", "value": "Engineering" }] }
+          }
+        },
+        {
+          "name": "Search Employees",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/employees/?search=john", "host": ["{{base_url}}"], "path": ["api","employees",""], "query": [{ "key": "search", "value": "john" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Tasks",
+      "item": [
+        {
+          "name": "Create Task - Admin to John",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Prepare report\",\n  \"description\": \"Monthly sales report\",\n  \"assigned_to\": {{employee_employee_id}},\n  \"priority\": \"HIGH\",\n  \"start_date\": \"2026-09-28\",\n  \"deadline\": \"2026-10-15\"\n}" },
+            "url": { "raw": "{{base_url}}/api/tasks/", "host": ["{{base_url}}"], "path": ["api","tasks",""] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  pm.collectionVariables.set('task_id', pm.response.json().data.id);",
+            "}",
+            "pm.test('Status 201', () => pm.response.to.have.status(201));"
+          ]}}]
+        },
+        {
+          "name": "Create Task - Manager to Team Member",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{manager_access}}" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Fix login bug\",\n  \"assigned_to\": {{employee_employee_id}},\n  \"priority\": \"MEDIUM\",\n  \"deadline\": \"2026-10-20\"\n}" },
+            "url": { "raw": "{{base_url}}/api/tasks/", "host": ["{{base_url}}"], "path": ["api","tasks",""] }
+          }
+        },
+        {
+          "name": "List Tasks - Admin (sees all)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/tasks/", "host": ["{{base_url}}"], "path": ["api","tasks",""] }
+          }
+        },
+        {
+          "name": "List Tasks - Manager (sees team)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{manager_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/tasks/", "host": ["{{base_url}}"], "path": ["api","tasks",""] }
+          }
+        },
+        {
+          "name": "My Tasks - Employee",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/tasks/my-tasks/", "host": ["{{base_url}}"], "path": ["api","tasks","my-tasks",""] }
+          }
+        },
+        {
+          "name": "Update Task Status - Employee",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"IN_PROGRESS\"\n}" },
+            "url": { "raw": "{{base_url}}/api/tasks/{{task_id}}/", "host": ["{{base_url}}"], "path": ["api","tasks","{{task_id}}",""] }
+          }
+        },
+        {
+          "name": "Employee Tries to Edit Title (expect 403)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Hacked\"\n}" },
+            "url": { "raw": "{{base_url}}/api/tasks/{{task_id}}/", "host": ["{{base_url}}"], "path": ["api","tasks","{{task_id}}",""] }
+          }
+        },
+        {
+          "name": "Overdue Tasks",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/tasks/overdue/", "host": ["{{base_url}}"], "path": ["api","tasks","overdue",""] }
+          }
+        },
+        {
+          "name": "Completed Tasks",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/tasks/completed/", "host": ["{{base_url}}"], "path": ["api","tasks","completed",""] }
+          }
+        },
+        {
+          "name": "Pending Tasks",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/tasks/pending/", "host": ["{{base_url}}"], "path": ["api","tasks","pending",""] }
+          }
+        },
+        {
+          "name": "Delete Task - Admin",
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/tasks/{{task_id}}/", "host": ["{{base_url}}"], "path": ["api","tasks","{{task_id}}",""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Comments",
+      "item": [
+        {
+          "name": "Add Comment - Employee",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"comment\": \"Started working on this\"\n}" },
+            "url": { "raw": "{{base_url}}/api/tasks/{{task_id}}/comments/", "host": ["{{base_url}}"], "path": ["api","tasks","{{task_id}}","comments",""] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  pm.collectionVariables.set('comment_id', pm.response.json().data.id);",
+            "}"
+          ]}}]
+        },
+        {
+          "name": "List Comments",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/tasks/{{task_id}}/comments/", "host": ["{{base_url}}"], "path": ["api","tasks","{{task_id}}","comments",""] }
+          }
+        },
+        {
+          "name": "Update Own Comment",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"comment\": \"Almost done\"\n}" },
+            "url": { "raw": "{{base_url}}/api/comments/{{comment_id}}/", "host": ["{{base_url}}"], "path": ["api","comments","{{comment_id}}",""] }
+          }
+        },
+        {
+          "name": "Delete Comment - Admin",
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/comments/{{comment_id}}/", "host": ["{{base_url}}"], "path": ["api","comments","{{comment_id}}",""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Attachments",
+      "item": [
+        {
+          "name": "Upload Attachment - Employee",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "src": "" }] },
+            "url": { "raw": "{{base_url}}/api/tasks/{{task_id}}/attachments/", "host": ["{{base_url}}"], "path": ["api","tasks","{{task_id}}","attachments",""] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  pm.collectionVariables.set('attachment_id', pm.response.json().data.id);",
+            "}"
+          ]}}]
+        },
+        {
+          "name": "List Attachments",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/tasks/{{task_id}}/attachments/", "host": ["{{base_url}}"], "path": ["api","tasks","{{task_id}}","attachments",""] }
+          }
+        },
+        {
+          "name": "Delete Attachment - Uploader",
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/attachments/{{attachment_id}}/", "host": ["{{base_url}}"], "path": ["api","attachments","{{attachment_id}}",""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Notifications",
+      "item": [
+        {
+          "name": "List Notifications - Employee",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/notifications/", "host": ["{{base_url}}"], "path": ["api","notifications",""] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const results = pm.response.json().data.results;",
+            "if (results && results.length) { pm.collectionVariables.set('notification_id', results[0].id); }"
+          ]}}]
+        },
+        {
+          "name": "Mark Notification Read",
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/notifications/{{notification_id}}/read/", "host": ["{{base_url}}"], "path": ["api","notifications","{{notification_id}}","read",""] }
+          }
+        },
+        {
+          "name": "Mark All Notifications Read",
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/notifications/read-all/", "host": ["{{base_url}}"], "path": ["api","notifications","read-all",""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Dashboards",
+      "item": [
+        {
+          "name": "Employee Dashboard",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{employee_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/dashboard/employee/", "host": ["{{base_url}}"], "path": ["api","dashboard","employee",""] }
+          }
+        },
+        {
+          "name": "Manager Dashboard",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{manager_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/dashboard/manager/", "host": ["{{base_url}}"], "path": ["api","dashboard","manager",""] }
+          }
+        },
+        {
+          "name": "Admin Dashboard",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_access}}" }] },
+            "url": { "raw": "{{base_url}}/api/dashboard/admin/", "host": ["{{base_url}}"], "path": ["api","dashboard","admin",""] }
+          }
+        }
+      ]
+    }
+  ]
+}
