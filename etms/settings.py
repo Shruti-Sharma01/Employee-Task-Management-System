@@ -23,12 +23,9 @@ def get_list(name, default=""):
 # ---------------------------------------------------------------
 # Core security settings
 # ---------------------------------------------------------------
-SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    raise RuntimeError("SECRET_KEY is missing. Add it to your .env file.")
-
-DEBUG = os.getenv("DEBUG", "False") == "True"
-ALLOWED_HOSTS = ["*"] if DEBUG else get_list("ALLOWED_HOSTS", "localhost,127.0.0.1")
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-etms-cloud-secret-key-fallback-998877665544")
+DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
+ALLOWED_HOSTS = ["*"] if DEBUG else get_list("ALLOWED_HOSTS", "localhost,127.0.0.1,.onrender.com,*")
 
 # ---------------------------------------------------------------
 # Applications
@@ -56,6 +53,7 @@ AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",  # must be above CommonMiddleware
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -86,18 +84,36 @@ WSGI_APPLICATION = "etms.wsgi.application"
 ASGI_APPLICATION = "etms.asgi.application"
 
 # ---------------------------------------------------------------
-# Database (PostgreSQL) - credentials come from .env
+# Database (PostgreSQL / DATABASE_URL on Render / SQLite fallback)
 # ---------------------------------------------------------------
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME"),
-        "USER": os.getenv("DB_USER"),
-        "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST", "localhost"),
-        "PORT": os.getenv("DB_PORT", "5432"),
+import dj_database_url
+
+if os.getenv("DATABASE_URL"):
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=os.getenv("DATABASE_URL"),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
+elif os.getenv("DB_NAME"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DB_NAME"),
+            "USER": os.getenv("DB_USER"),
+            "PASSWORD": os.getenv("DB_PASSWORD"),
+            "HOST": os.getenv("DB_HOST", "localhost"),
+            "PORT": os.getenv("DB_PORT", "5432"),
+        }
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 # ---------------------------------------------------------------
 # Password validation
@@ -122,6 +138,7 @@ USE_TZ = True  # store datetimes in UTC, convert for display
 # ---------------------------------------------------------------
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"  # uploads are saved here
