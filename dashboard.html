@@ -4,9 +4,75 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Employee Task Manager</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <script>
+        function checkAuthGuard() {
+            var token = localStorage.getItem('etm_access_token');
+            var user = localStorage.getItem('etm_current_user');
+            if (!token || !user) {
+                document.documentElement.innerHTML = '';
+                window.location.replace('login.html');
+            }
+        }
+        checkAuthGuard();
+        window.addEventListener('pageshow', function (event) {
+            checkAuthGuard();
+        });
+        function logoutUser(e) {
+            if (e && e.preventDefault) e.preventDefault();
+            localStorage.clear();
+            sessionStorage.clear();
+            document.documentElement.innerHTML = '';
+            window.location.replace('login.html');
+        }
+    </script>
+    <script>
+        (function() {
+            var theme = localStorage.getItem('etm_theme') || 'light';
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+            var lastToggleTime = 0;
+            window.toggleDarkMode = function(e) {
+                if (e && e.preventDefault) e.preventDefault();
+                var now = Date.now();
+                if (now - lastToggleTime < 350) return;
+                lastToggleTime = now;
+
+                var isDark = document.documentElement.classList.contains('dark-theme');
+                var next = isDark ? 'light' : 'dark';
+                if (next === 'dark') {
+                    document.documentElement.classList.add('dark-theme');
+                } else {
+                    document.documentElement.classList.remove('dark-theme');
+                }
+                try { localStorage.setItem('etm_theme', next); } catch (_) {}
+                var btns = document.querySelectorAll('#themeToggleBtn, .theme-toggle-btn');
+                btns.forEach(function(b) {
+                    b.innerHTML = (next === 'dark') ? '☀️' : '🌙';
+                    b.setAttribute('title', (next === 'dark') ? 'Switch to Light Mode' : 'Switch to Dark Mode');
+                });
+            };
+            document.addEventListener('DOMContentLoaded', function() {
+                var isDark = document.documentElement.classList.contains('dark-theme');
+                var btns = document.querySelectorAll('#themeToggleBtn, .theme-toggle-btn');
+                btns.forEach(function(b) {
+                    b.innerHTML = isDark ? '☀️' : '🌙';
+                    b.setAttribute('title', isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode');
+                });
+            });
+        })();
+    </script>
     <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/dashboard.css?v=2.5">
+    <link rel="stylesheet" href="css/notifications.css?v=1.0">
+    <link rel="stylesheet" href="css/drawer.css?v=2.0">
+    <link rel="stylesheet" href="css/theme.css?v=1.3">
     <link rel="stylesheet" href="css/responsive.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -19,7 +85,8 @@
             <a href="dashboard.html" class="active">Dashboard</a>
             <a href="tasks.html">Tasks</a>
             <a href="profile.html">Profile</a>
-            <a href="login.html">Logout</a>
+            <button type="button" class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleDarkMode()" aria-label="Toggle Theme" title="Toggle Dark/Light Mode">🌙</button>
+            <a href="login.html" onclick="logoutUser(event)">Logout</a>
         </nav>
         <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">&#9776;</button>
     </header>
@@ -28,55 +95,130 @@
 
         <aside class="sidebar" id="sidebar">
             <ul>
-                <li><a href="dashboard.html">Dashboard</a></li>
+                <li><a href="dashboard.html" class="active">Dashboard</a></li>
                 <li><a href="tasks.html">My Tasks</a></li>
                 <li><a href="profile.html">Profile</a></li>
+                <li><a href="login.html" onclick="logoutUser(event)">Logout</a></li>
             </ul>
         </aside>
 
         <main class="main-content">
 
-            <h1>Employee Dashboard</h1>
+            <div class="dashboard-page-header">
+                <div>
+                    <h1>Employee Dashboard</h1>
+                    <p style="color: var(--color-text-muted); font-size: 0.9rem; margin-top: 4px;">
+                        Your task analytics at a glance
+                    </p>
+                </div>
+            </div>
 
+            <!-- ── Stat Cards ─────────────────────────────────────────── -->
             <section class="stats-cards">
-                <div class="card" id="totalTasksCard">
-                    <h3>Total Tasks</h3>
-                    <p class="stat-number" id="totalTasks">0</p>
+                <div class="card stat-card" id="totalTasksCard">
+                    <div class="stat-icon stat-icon-total">📋</div>
+                    <div>
+                        <h3>Total Tasks</h3>
+                        <p class="stat-number" id="totalTasks">0</p>
+                    </div>
                 </div>
-                <div class="card" id="pendingTasksCard">
-                    <h3>Pending</h3>
-                    <p class="stat-number" id="pendingTasks">0</p>
+                <div class="card stat-card" id="pendingTasksCard">
+                    <div class="stat-icon stat-icon-pending">⏳</div>
+                    <div>
+                        <h3>Pending</h3>
+                        <p class="stat-number" id="pendingTasks">0</p>
+                    </div>
                 </div>
-                <div class="card" id="progressTasksCard">
-                    <h3>In Progress</h3>
-                    <p class="stat-number" id="progressTasks">0</p>
+                <div class="card stat-card" id="progressTasksCard">
+                    <div class="stat-icon stat-icon-progress">🔄</div>
+                    <div>
+                        <h3>In Progress</h3>
+                        <p class="stat-number" id="progressTasks">0</p>
+                    </div>
                 </div>
-                <div class="card" id="completedTasksCard">
-                    <h3>Completed</h3>
-                    <p class="stat-number" id="completedTasks">0</p>
+                <div class="card stat-card" id="completedTasksCard">
+                    <div class="stat-icon stat-icon-completed">✅</div>
+                    <div>
+                        <h3>Completed</h3>
+                        <p class="stat-number" id="completedTasks">0</p>
+                    </div>
                 </div>
             </section>
 
+            <!-- ── Overdue Alert Bar ──────────────────────────────────── -->
+            <section id="overdueSection" class="overdue-section" style="display:none;">
+                <div class="overdue-header">
+                    <span class="overdue-pulse"></span>
+                    <strong>⚠️ Overdue Tasks</strong>
+                    <span class="overdue-count-badge" id="overdueCount">0</span>
+                    <span style="font-size:0.85rem; color:#fff; opacity:0.85; margin-left:8px;">tasks have passed their deadline!</span>
+                </div>
+                <div class="overdue-cards-wrapper" id="overdueCards"></div>
+            </section>
+
+            <!-- ── Progress Bar ───────────────────────────────────────── -->
             <section class="progress-section">
-                <h2>Overall Progress</h2>
+                <div class="progress-section-header">
+                    <h2>Overall Progress</h2>
+                    <span class="progress-badge" id="progressPercent">0%</span>
+                </div>
                 <div class="progress-bar-container">
                     <div class="progress-bar" id="progressBar" style="width: 0%;"></div>
                 </div>
-                <p id="progressPercent">0% completed</p>
+                <p style="font-size:0.8rem; color:var(--color-text-muted); margin-top:6px;">
+                    Percentage of tasks marked as Completed
+                </p>
             </section>
 
+            <!-- ── Charts Row ─────────────────────────────────────────── -->
+            <section class="charts-row">
+
+                <!-- Doughnut Chart -->
+                <div class="chart-card card">
+                    <div class="chart-card-header">
+                        <h3>🥧 Status Distribution</h3>
+                        <span class="chart-subtitle">All tasks by status</span>
+                    </div>
+                    <div class="chart-wrapper doughnut-wrapper">
+                        <canvas id="statusDoughnutChart"></canvas>
+                        <div class="doughnut-center-label" id="doughnutCenterLabel">
+                            <span id="doughnutTotal">0</span>
+                            <small>Tasks</small>
+                        </div>
+                    </div>
+                    <div class="chart-legend" id="doughnutLegend"></div>
+                </div>
+
+                <!-- Weekly Bar Chart -->
+                <div class="chart-card card">
+                    <div class="chart-card-header">
+                        <h3>📈 Weekly Productivity</h3>
+                        <span class="chart-subtitle">Tasks completed this week</span>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="weeklyBarChart"></canvas>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- ── Recent Tasks ───────────────────────────────────────── -->
             <section class="recent-tasks">
-                <h2>Recent Tasks</h2>
+                <div class="recent-tasks-header">
+                    <h2>Recent Tasks</h2>
+                    <a href="tasks.html" class="btn btn-secondary" style="padding:6px 14px;font-size:0.82rem;">View All →</a>
+                </div>
                 <table class="tasks-table" id="recentTasksTable">
                     <thead>
                         <tr>
                             <th>Task</th>
+                            <th>Due Date</th>
                             <th>Priority</th>
                             <th>Status</th>
                         </tr>
                     </thead>
                     <tbody id="recentTasksBody">
-                        <!-- Rows inserted dynamically via JavaScript on Day 5/8 -->
+                        <!-- Rows inserted dynamically -->
                     </tbody>
                 </table>
             </section>
@@ -85,8 +227,13 @@
 
     </div>
 
-    <script src="js/storage.js"></script>
-    <script src="js/nav.js"></script>
-    <script src="js/dashboard.js"></script>
+    <script src="js/api.js?v=2.2"></script>
+    <script src="js/storage.js?v=2.2"></script>
+    <script src="js/nav.js?v=2.2"></script>
+    <script src="js/role-ui.js?v=1.1"></script>
+    <script src="js/theme.js?v=1.3"></script>
+    <script src="js/drawer.js?v=2.0"></script>
+    <script src="js/dashboard.js?v=2.5"></script>
+    <script src="js/notifications.js?v=1.0"></script>
 </body>
 </html>

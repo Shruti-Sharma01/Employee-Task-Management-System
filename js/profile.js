@@ -5,14 +5,33 @@
 // Bulletproof SVG default avatar (guaranteed never to 404 or trigger error loops)
 const DEFAULT_AVATAR = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23E2E8F0'/><circle cx='50' cy='38' r='20' fill='%2394A3B8'/><path d='M50 62c-20 0-36 12-36 28h72c0-16-16-28-36-28z' fill='%2394A3B8'/></svg>";
 
-document.addEventListener('DOMContentLoaded', () => {
-    // 1. Safe Auth Check (creates default session if opened standalone to prevent redirect bouncing)
-    const currentUser = getCurrentUser();
-
+document.addEventListener('DOMContentLoaded', async () => {
     initNavigation();
     initLogout();
+
+    if (typeof apiRequest === 'function' && localStorage.getItem('etm_access_token')) {
+        try {
+            const res = await apiRequest('/auth/profile/');
+            if (res.ok && res.data?.data) {
+                const u = res.data.data;
+                const existing = getCurrentUser() || {};
+                const updated = {
+                    ...existing,
+                    id: u.id,
+                    username: u.username,
+                    email: u.email,
+                    fullName: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username,
+                    role: u.role || existing.role
+                };
+                localStorage.setItem('etm_current_user', JSON.stringify(updated));
+            }
+        } catch (e) {
+            console.warn('Profile sync deferred:', e);
+        }
+    }
+
+    const currentUser = getCurrentUser();
     loadProfileData(currentUser);
-    
     setupQuickClickAvatar();
     setupModalAvatar();
 });
@@ -23,19 +42,17 @@ document.addEventListener('DOMContentLoaded', () => {
 function getCurrentUser() {
     const session = localStorage.getItem('etm_current_user');
     if (!session) {
-        const defaultUser = {
-            username: 'employee',
-            fullName: 'Alex Morgan',
-            email: 'alex.morgan@company.com',
-            department: 'Product Engineering',
-            role: 'Software Engineer',
-            avatar: DEFAULT_AVATAR
-        };
-        localStorage.setItem('etm_current_user', JSON.stringify(defaultUser));
-        return defaultUser;
+        window.location.href = 'login.html';
+        return null;
     }
     try {
-        return JSON.parse(session);
+        const user = JSON.parse(session);
+        if (user && user.username === 'employee' && user.fullName === 'Alex Morgan') {
+            localStorage.removeItem('etm_current_user');
+            window.location.href = 'login.html';
+            return null;
+        }
+        return user;
     } catch (e) {
         return null;
     }
@@ -46,13 +63,6 @@ function getCurrentUser() {
  */
 function saveCurrentUser(updatedUser) {
     localStorage.setItem('etm_current_user', JSON.stringify(updatedUser));
-
-    const registeredUsers = JSON.parse(localStorage.getItem('etm_users') || '[]');
-    const index = registeredUsers.findIndex(u => u.username === updatedUser.username);
-    if (index !== -1) {
-        registeredUsers[index] = { ...registeredUsers[index], ...updatedUser };
-        localStorage.setItem('etm_users', JSON.stringify(registeredUsers));
-    }
 }
 
 /**
@@ -147,13 +157,16 @@ function showToast(message) {
             position: fixed;
             bottom: 24px;
             right: 24px;
-            background-color: #1E2A44;
+            background-color: var(--color-sidebar, #08129C);
             color: #FFFFFF;
-            padding: 12px 20px;
-            border-radius: 6px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            padding: 12px 22px;
+            border-radius: 8px;
+            border-left: 4px solid var(--color-carolina-blue, #74B8FD);
+            box-shadow: 0 10px 25px rgba(8, 18, 156, 0.25);
             font-size: 0.9rem;
+            font-weight: 500;
             z-index: 1000;
+            opacity: 0;
             transition: opacity 0.3s ease;
         `;
         document.body.appendChild(toast);
@@ -352,8 +365,14 @@ function setupModalAvatar() {
 function initLogout() {
     const logoutLinks = document.querySelectorAll('a[href="login.html"]');
     logoutLinks.forEach(link => {
-        link.addEventListener('click', () => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
             localStorage.removeItem('etm_current_user');
+            localStorage.removeItem('etm_access_token');
+            localStorage.removeItem('etm_refresh_token');
+            localStorage.removeItem('employee_tasks');
+            sessionStorage.clear();
+            window.location.replace('login.html');
         });
     });
 }

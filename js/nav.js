@@ -101,14 +101,42 @@ function initActiveNavLinks() {
 }
 
 /**
- * 3. Handle Logout Link
+ * 3. Authentication & Logout Control
  */
+function isProtectedPage() {
+    const full = (window.location.pathname + window.location.search + window.location.hash).toLowerCase();
+    return ['tasks', 'dashboard', 'profile'].some(p => full.includes(p));
+}
+
+function enforceAuthGuard() {
+    if (!isProtectedPage()) return;
+    const token = localStorage.getItem('etm_access_token');
+    const user = localStorage.getItem('etm_current_user');
+    if (!token || !user) {
+        document.documentElement.innerHTML = '';
+        window.location.replace('login.html');
+    }
+}
+
+// Check immediately and on back-forward cache restore
+enforceAuthGuard();
+window.addEventListener('pageshow', (event) => {
+    enforceAuthGuard();
+});
+
+window.logoutUser = function(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    localStorage.clear();
+    sessionStorage.clear();
+    document.documentElement.innerHTML = '';
+    window.location.replace('login.html');
+};
+
 function initLogoutLinks() {
     const logoutLinks = document.querySelectorAll('a[href="login.html"]');
     logoutLinks.forEach(link => {
-        link.addEventListener('click', () => {
-            // Clear current login session
-            localStorage.removeItem('etm_current_user');
+        link.addEventListener('click', (e) => {
+            window.logoutUser(e);
         });
     });
 }

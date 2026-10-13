@@ -4,8 +4,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tasks - Employee Task Manager</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/responsive.css">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <script>
+        function checkAuthGuard() {
+            var token = localStorage.getItem('etm_access_token');
+            var user = localStorage.getItem('etm_current_user');
+            if (!token || !user) {
+                document.documentElement.innerHTML = '';
+                window.location.replace('login.html');
+            }
+        }
+        checkAuthGuard();
+        window.addEventListener('pageshow', function (event) {
+            checkAuthGuard();
+        });
+        function logoutUser(e) {
+            if (e && e.preventDefault) e.preventDefault();
+            localStorage.clear();
+            sessionStorage.clear();
+            document.documentElement.innerHTML = '';
+            window.location.replace('login.html');
+        }
+    </script>
+    <script>
+        (function() {
+            var theme = localStorage.getItem('etm_theme') || 'light';
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+            var lastToggleTime = 0;
+            window.toggleDarkMode = function(e) {
+                if (e && e.preventDefault) e.preventDefault();
+                var now = Date.now();
+                if (now - lastToggleTime < 350) return;
+                lastToggleTime = now;
+
+                var isDark = document.documentElement.classList.contains('dark-theme');
+                var next = isDark ? 'light' : 'dark';
+                if (next === 'dark') {
+                    document.documentElement.classList.add('dark-theme');
+                } else {
+                    document.documentElement.classList.remove('dark-theme');
+                }
+                try { localStorage.setItem('etm_theme', next); } catch (_) {}
+                var btns = document.querySelectorAll('#themeToggleBtn, .theme-toggle-btn');
+                btns.forEach(function(b) {
+                    b.innerHTML = (next === 'dark') ? '☀️' : '🌙';
+                    b.setAttribute('title', (next === 'dark') ? 'Switch to Light Mode' : 'Switch to Dark Mode');
+                });
+            };
+            document.addEventListener('DOMContentLoaded', function() {
+                var isDark = document.documentElement.classList.contains('dark-theme');
+                var btns = document.querySelectorAll('#themeToggleBtn, .theme-toggle-btn');
+                btns.forEach(function(b) {
+                    b.innerHTML = isDark ? '☀️' : '🌙';
+                    b.setAttribute('title', isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode');
+                });
+            });
+        })();
+    </script>
+    <link rel="stylesheet" href="css/style.css?v=2.6">
+    <link rel="stylesheet" href="css/notifications.css?v=1.0">
+    <link rel="stylesheet" href="css/drawer.css?v=2.0">
+    <link rel="stylesheet" href="css/theme.css?v=1.3">
+    <link rel="stylesheet" href="css/responsive.css?v=2.4">
 </head>
 <body>
 
@@ -18,7 +82,8 @@
             <a href="dashboard.html">Dashboard</a>
             <a href="tasks.html" class="active">Tasks</a>
             <a href="profile.html">Profile</a>
-            <a href="login.html">Logout</a>
+            <button type="button" class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleDarkMode()" aria-label="Toggle Theme" title="Toggle Dark/Light Mode">🌙</button>
+            <a href="login.html" onclick="logoutUser(event)">Logout</a>
         </nav>
         <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">&#9776;</button>
     </header>
@@ -30,14 +95,38 @@
                 <li><a href="dashboard.html">Dashboard</a></li>
                 <li><a href="tasks.html" class="active">My Tasks</a></li>
                 <li><a href="profile.html">Profile</a></li>
+                <li><a href="login.html" onclick="logoutUser(event)">Logout</a></li>
             </ul>
         </aside>
 
         <main class="main-content">
 
-            <h1>Task Management</h1>
-
-            <button class="btn btn-primary" id="openAddTaskBtn">+ Add Task</button>
+            <div class="tasks-page-header">
+                <div>
+                    <h1>Task Management</h1>
+                    <p style="color: var(--color-text-muted); font-size: 0.9rem; margin-top: 4px;">Track, organize, and manage your team's workflow</p>
+                </div>
+                <div class="tasks-header-actions">
+                    <div class="view-toggle-group">
+                        <button type="button" class="view-toggle-btn active" id="tableViewBtn" title="Table View">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                                <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+                            </svg>
+                            Table View
+                        </button>
+                        <button type="button" class="view-toggle-btn" id="kanbanViewBtn" title="Kanban Board">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect width="6" height="14" x="3" y="5" rx="1"/>
+                                <rect width="6" height="10" x="11" y="5" rx="1"/>
+                                <rect width="6" height="16" x="19" y="5" rx="1"/>
+                            </svg>
+                            Kanban Board
+                        </button>
+                    </div>
+                    <button class="btn btn-primary" id="openAddTaskBtn">+ Add Task</button>
+                </div>
+            </div>
 
             <!-- Search & Filter -->
             <section class="search-filter-bar">
@@ -53,6 +142,7 @@
                         <option value="pending">Pending</option>
                         <option value="in-progress">In Progress</option>
                         <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
                     </select>
                 </div>
 
@@ -130,13 +220,43 @@
                         <span class="error-message" id="taskDueDateError"></span>
                     </div>
 
+                    <div class="form-group" id="assignToGroup">
+                        <label for="taskAssignTo">Assign To</label>
+                        <select id="taskAssignTo" name="taskAssignTo">
+                            <option value="">— Select Employee —</option>
+                        </select>
+                        <span class="field-hint" style="font-size:0.78rem;color:var(--color-text-muted);margin-top:3px;display:block;">
+                            Leave blank to assign to yourself
+                        </span>
+                    </div>
+
                     <div class="form-group">
                         <label for="taskStatus">Status</label>
                         <select id="taskStatus" name="taskStatus">
                             <option value="pending">Pending</option>
                             <option value="in-progress">In Progress</option>
                             <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
                         </select>
+                    </div>
+
+                    <!-- File Attachments Upload Zone -->
+                    <div class="form-group" id="formAttachmentsGroup">
+                        <label for="taskFormFiles">Attachments (Images, PDF, Documents)</label>
+                        <div class="form-file-dropzone" id="formFileDropzone">
+                            <input type="file" id="taskFormFiles" name="taskFormFiles" multiple
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg">
+                            <div class="dropzone-inner">
+                                <span class="dropzone-icon">📎</span>
+                                <div class="dropzone-text">
+                                    <strong>Click to browse</strong> or drag &amp; drop files here
+                                </div>
+                                <div class="dropzone-sub">
+                                    PNG, JPG, PDF, Word, Excel (Max 5MB each)
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-files-preview-list" id="formFilesPreviewList"></div>
                     </div>
 
                     <div class="form-actions">
@@ -146,8 +266,8 @@
                 </form>
             </section>
 
-            <!-- Task List -->
-            <section class="task-list-container">
+            <!-- Task List (Table View) -->
+            <section class="task-list-container" id="tableViewContainer">
                 <table class="tasks-table" id="tasksTable">
                     <thead>
                         <tr>
@@ -163,6 +283,65 @@
                         <!-- Rows inserted dynamically via JavaScript -->
                     </tbody>
                 </table>
+            </section>
+
+            <!-- Kanban Board View -->
+            <section class="kanban-container" id="kanbanViewContainer" style="display: none;">
+                <!-- Column: To-Do (Pending) -->
+                <div class="kanban-column" data-status="pending">
+                    <div class="kanban-column-header header-pending">
+                        <div class="column-title-wrap">
+                            <span class="column-dot dot-pending"></span>
+                            <h3>To-Do</h3>
+                        </div>
+                        <span class="column-count" id="countPending">0</span>
+                    </div>
+                    <div class="kanban-cards-wrapper" id="kanbanPending" data-status="pending">
+                        <!-- Cards injected via JS -->
+                    </div>
+                </div>
+
+                <!-- Column: In Progress -->
+                <div class="kanban-column" data-status="in-progress">
+                    <div class="kanban-column-header header-inprogress">
+                        <div class="column-title-wrap">
+                            <span class="column-dot dot-inprogress"></span>
+                            <h3>In Progress</h3>
+                        </div>
+                        <span class="column-count" id="countInProgress">0</span>
+                    </div>
+                    <div class="kanban-cards-wrapper" id="kanbanInProgress" data-status="in-progress">
+                        <!-- Cards injected via JS -->
+                    </div>
+                </div>
+
+                <!-- Column: Completed -->
+                <div class="kanban-column" data-status="completed">
+                    <div class="kanban-column-header header-completed">
+                        <div class="column-title-wrap">
+                            <span class="column-dot dot-completed"></span>
+                            <h3>Completed</h3>
+                        </div>
+                        <span class="column-count" id="countCompleted">0</span>
+                    </div>
+                    <div class="kanban-cards-wrapper" id="kanbanCompleted" data-status="completed">
+                        <!-- Cards injected via JS -->
+                    </div>
+                </div>
+
+                <!-- Column: Cancelled -->
+                <div class="kanban-column" data-status="cancelled">
+                    <div class="kanban-column-header header-cancelled">
+                        <div class="column-title-wrap">
+                            <span class="column-dot dot-cancelled"></span>
+                            <h3>Cancelled</h3>
+                        </div>
+                        <span class="column-count" id="countCancelled">0</span>
+                    </div>
+                    <div class="kanban-cards-wrapper" id="kanbanCancelled" data-status="cancelled">
+                        <!-- Cards injected via JS -->
+                    </div>
+                </div>
             </section>
 
             <!-- Delete Confirmation Modal -->
@@ -181,8 +360,13 @@
 
     </div>
 
-    <script src="js/storage.js"></script>
-    <script src="js/nav.js"></script>
-    <script src="js/tasks.js"></script>
+    <script src="js/api.js?v=2.2"></script>
+    <script src="js/storage.js?v=2.2"></script>
+    <script src="js/nav.js?v=2.2"></script>
+    <script src="js/role-ui.js?v=1.1"></script>
+    <script src="js/theme.js?v=1.3"></script>
+    <script src="js/drawer.js?v=2.0"></script>
+    <script src="js/tasks.js?v=2.8"></script>
+    <script src="js/notifications.js?v=1.0"></script>
 </body>
 </html>

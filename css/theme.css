@@ -1,0 +1,452 @@
+/* =============================================================
+   css/theme.css  (v1.0)
+   Dark Theme (Dark Slate / Deep Navy) & Navbar Theme Toggle
+   ============================================================= */
+
+/* ── Dark Theme Variable Overrides ─────────────────────────── */
+html.dark-theme {
+    /* Base palette overrides */
+    --color-bg: #0B1329;              /* Deep dark navy background */
+    --color-surface: #141F38;         /* Card / surface dark navy */
+    --color-border: #233554;          /* Slate navy border */
+    --color-text: #F1F5F9;            /* High-contrast crisp white */
+    --color-text-muted: #94A3B8;      /* Slate muted text */
+
+    /* Brand accents for dark mode */
+    --color-primary: #388BFD;         /* Electric blue optimized for dark */
+    --color-primary-dark: #1F6FEB;
+    --color-primary-light: #162C54;
+    --color-accent: #74B8FD;
+    --color-sidebar: #070D1E;         /* Ultra deep navbar / sidebar */
+    --color-sidebar-hover: #121E3D;
+
+    /* Status badge backgrounds */
+    --color-success-bg: rgba(34, 197, 94, 0.18);
+    --color-warning-bg: rgba(234, 179, 8, 0.18);
+    --color-danger-bg: rgba(239, 68, 68, 0.18);
+    --color-info-bg: rgba(56, 139, 253, 0.18);
+
+    /* Shadows */
+    --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.35);
+    --shadow-hover: 0 10px 30px rgba(0, 0, 0, 0.60);
+}
+
+/* ── Core Body & Layout ────────────────────────────────────── */
+html.dark-theme,
+html.dark-theme body,
+body.dark-theme,
+html.dark-theme .landing-body {
+    background-color: #0B1329 !important;
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .layout {
+    background-color: var(--color-bg);
+}
+
+html.dark-theme .navbar {
+    background-color: var(--color-sidebar);
+    border-bottom: 1px solid var(--color-border);
+}
+
+html.dark-theme .sidebar {
+    background-color: var(--color-sidebar);
+    box-shadow: 2px 0 14px rgba(0, 0, 0, 0.4);
+}
+
+html.dark-theme .main-content {
+    background-color: var(--color-bg);
+}
+
+/* ── Theme Toggle Button (Navbar) ──────────────────────────── */
+.navbar-links {
+    align-items: center !important;
+}
+
+.theme-toggle-btn {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    color: #FFFFFF;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.15rem;
+    line-height: 1;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    flex-shrink: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.theme-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.22);
+    transform: rotate(18deg) scale(1.08);
+    box-shadow: 0 0 12px rgba(116, 184, 253, 0.4);
+}
+
+.theme-toggle-btn:active {
+    transform: scale(0.92);
+}
+
+/* ── Forms, Inputs, Dropdowns in Dark Mode ──────────────────── */
+html.dark-theme input[type="text"],
+html.dark-theme input[type="email"],
+html.dark-theme input[type="password"],
+html.dark-theme input[type="date"],
+html.dark-theme select,
+html.dark-theme textarea {
+    background-color: #1A2644 !important;
+    color: #F1F5F9 !important;
+    border-color: #2D3E64 !important;
+}
+
+html.dark-theme input::placeholder,
+html.dark-theme textarea::placeholder {
+    color: #64748B !important;
+}
+
+html.dark-theme input:focus,
+html.dark-theme select:focus,
+html.dark-theme textarea:focus {
+    border-color: #388BFD !important;
+    box-shadow: 0 0 0 3px rgba(56, 139, 253, 0.25) !important;
+}
+
+html.dark-theme select option {
+    background-color: #141F38;
+    color: #F1F5F9;
+}
+
+/* ── Tables in Dark Mode ───────────────────────────────────── */
+html.dark-theme .task-list-container,
+html.dark-theme .recent-tasks-container {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-card);
+}
+
+html.dark-theme .tasks-table th,
+html.dark-theme .recent-tasks-table th {
+    background-color: #0E172E !important;
+    color: #94A3B8 !important;
+    border-bottom: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .tasks-table td,
+html.dark-theme .recent-tasks-table td {
+    border-bottom: 1px solid var(--color-border) !important;
+    color: #F1F5F9;
+}
+
+html.dark-theme .tasks-table tbody tr:hover,
+html.dark-theme .recent-tasks-table tbody tr:hover {
+    background-color: rgba(56, 139, 253, 0.08) !important;
+}
+
+/* ── Filter Bar & Task Form in Dark Mode ───────────────────── */
+html.dark-theme .task-filters,
+html.dark-theme .task-form-container {
+    background-color: var(--color-surface) !important;
+    border: 1px solid var(--color-border) !important;
+    box-shadow: var(--shadow-card);
+}
+
+html.dark-theme .task-form-container h2 {
+    color: #F1F5F9;
+}
+
+html.dark-theme .form-actions {
+    border-top-color: var(--color-border);
+}
+
+/* ── Buttons in Dark Mode ──────────────────────────────────── */
+html.dark-theme .btn-secondary {
+    background-color: #1A2644 !important;
+    color: #F1F5F9 !important;
+    border: 1px solid #2D3E64 !important;
+}
+
+html.dark-theme .btn-secondary:hover {
+    background-color: #24355A !important;
+    border-color: #388BFD !important;
+}
+
+html.dark-theme .btn-view-toggle {
+    background-color: #1A2644 !important;
+    color: #94A3B8 !important;
+    border-color: #2D3E64 !important;
+}
+
+html.dark-theme .btn-view-toggle.active {
+    background-color: #388BFD !important;
+    color: #FFFFFF !important;
+    border-color: #388BFD !important;
+}
+
+/* ── Kanban Board in Dark Mode ─────────────────────────────── */
+html.dark-theme .kanban-column {
+    background-color: #0E172E !important;
+    border: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .kanban-column-header {
+    background-color: #141F38 !important;
+    border-bottom: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .kanban-card {
+    background-color: #141F38 !important;
+    border: 1px solid var(--color-border) !important;
+    color: #F1F5F9 !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+html.dark-theme .kanban-card:hover {
+    border-color: #388BFD !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+html.dark-theme .kanban-card-title {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .kanban-card-desc {
+    color: #94A3B8 !important;
+}
+
+html.dark-theme .kanban-card-meta {
+    border-top-color: var(--color-border) !important;
+    color: #94A3B8 !important;
+}
+
+html.dark-theme .kanban-card-category {
+    background-color: #1A2644 !important;
+    color: #74B8FD !important;
+}
+
+/* ── Dashboard Cards & Charts in Dark Mode ─────────────────── */
+html.dark-theme .stat-card {
+    background-color: var(--color-surface) !important;
+    border: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .stat-number {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .chart-card {
+    background-color: var(--color-surface) !important;
+    border: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .chart-card-header h2 {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .doughnut-center-number {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .progress-section {
+    background-color: var(--color-surface) !important;
+    border: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .progress-section-header h2 {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .progress-track {
+    background-color: #0E172E !important;
+}
+
+/* ── Modals & Dialogs in Dark Mode ─────────────────────────── */
+html.dark-theme .modal-content {
+    background-color: #141F38 !important;
+    border: 1px solid var(--color-border) !important;
+    color: #F1F5F9 !important;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65) !important;
+}
+
+html.dark-theme .modal-content h3 {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .modal-content p {
+    color: #94A3B8 !important;
+}
+
+/* ── Slide-over Side Drawer in Dark Mode ───────────────────── */
+html.dark-theme .task-drawer {
+    background-color: #0F172A !important;
+    border-left: 1px solid var(--color-border) !important;
+    box-shadow: -10px 0 45px rgba(0, 0, 0, 0.6) !important;
+}
+
+html.dark-theme .drawer-header {
+    background-color: #0F172A !important;
+    border-bottom: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .drawer-title {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .drawer-close-btn:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .drawer-section {
+    background-color: #141F38 !important;
+    border: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .drawer-section-title {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .drawer-meta-grid {
+    border-top-color: var(--color-border) !important;
+}
+
+html.dark-theme .drawer-desc-text,
+html.dark-theme .drawer-meta-val {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .drawer-footer {
+    background-color: #0F172A !important;
+    border-top: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .drawer-comment-textarea {
+    background-color: #1A2644 !important;
+    color: #F1F5F9 !important;
+    border-color: #2D3E64 !important;
+}
+
+html.dark-theme .drawer-comment-card {
+    background-color: #1A2644 !important;
+    border: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .drawer-comment-card.is-own {
+    background-color: #162C54 !important;
+    border-color: #388BFD !important;
+}
+
+html.dark-theme .drawer-comment-author {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .drawer-comment-text {
+    color: #E2E8F0 !important;
+}
+
+html.dark-theme .att-card-image,
+html.dark-theme .att-card-doc {
+    background-color: #1A2644 !important;
+    border: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .att-card-pdf {
+    background-color: #26161E !important;
+    border: 1px solid #5C2333 !important;
+}
+
+html.dark-theme .att-card-name {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .form-file-dropzone {
+    background-color: #141F38 !important;
+    border-color: #2D3E64 !important;
+}
+
+html.dark-theme .dropzone-text {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .form-file-chip {
+    background-color: #1A2644 !important;
+    border: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .form-file-name {
+    color: #F1F5F9 !important;
+}
+
+/* ── Notifications Dropdown in Dark Mode ───────────────────── */
+html.dark-theme .notif-dropdown {
+    background-color: #141F38 !important;
+    border: 1px solid var(--color-border) !important;
+    box-shadow: 0 15px 45px rgba(0, 0, 0, 0.6) !important;
+}
+
+html.dark-theme .notif-dropdown-header,
+html.dark-theme .notif-dropdown-footer {
+    background-color: #0E172E !important;
+    border-color: var(--color-border) !important;
+}
+
+html.dark-theme .notif-item {
+    border-bottom: 1px solid var(--color-border) !important;
+}
+
+html.dark-theme .notif-item:hover {
+    background-color: #1A2644 !important;
+}
+
+html.dark-theme .notif-item.unread {
+    background-color: rgba(56, 139, 253, 0.14) !important;
+}
+
+html.dark-theme .notif-item-title {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .notif-item-msg {
+    color: #CBD5E1 !important;
+}
+
+/* ── Profile Card in Dark Mode ─────────────────────────────── */
+html.dark-theme .profile-card {
+    background-color: var(--color-surface) !important;
+    border: 1px solid var(--color-border) !important;
+    box-shadow: var(--shadow-card);
+}
+
+html.dark-theme .profile-card h2 {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .profile-details dd {
+    color: #F1F5F9 !important;
+}
+
+/* ── Login, Register & Forgot Password Cards in Dark Mode ─── */
+html.dark-theme .login-container,
+html.dark-theme .register-container,
+html.dark-theme .forgot-container {
+    background-color: #141F38 !important;
+    border: 1px solid var(--color-border) !important;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6) !important;
+}
+
+html.dark-theme .login-container h1,
+html.dark-theme .register-container h1,
+html.dark-theme .forgot-container h1 {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .login-header p,
+html.dark-theme .register-header p,
+html.dark-theme .forgot-header p {
+    color: #94A3B8 !important;
+}

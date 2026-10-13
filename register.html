@@ -7,8 +7,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        if (localStorage.getItem('etm_theme') === 'dark') {
+            document.documentElement.classList.add('dark-theme');
+        }
+    </script>
     <link rel="stylesheet" href="css/register.css">
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/theme.css?v=1.2">
     <link rel="stylesheet" href="css/responsive.css">
 </head>
 <body>
@@ -68,6 +74,18 @@
                 </div>
             </div>
 
+            <!-- Role Selection -->
+            <div class="form-group">
+                <label for="roleSelect">Account Role</label>
+                <select id="roleSelect">
+                    <option value="EMPLOYEE">👤 Employee — Task management access</option>
+                    <option value="MANAGER">🏢 Manager — Team &amp; task oversight</option>
+                </select>
+                <span class="field-hint" style="margin-top:4px; display:block;">
+                    Select the access level for this account
+                </span>
+            </div>
+
             <!-- Password with Real-time Strength & Rules -->
             <div class="form-group">
                 <label for="password">Password</label>
@@ -123,7 +141,8 @@
 
     </main>
 
-    <!-- Interactive JavaScript with Password Strength and LocalStorage -->
+    <!-- Interactive JavaScript with Database API Integration -->
+    <script src="js/api.js"></script>
     <script src="js/register.js"></script>
     <script src="js/nav.js"></script>
 </body>

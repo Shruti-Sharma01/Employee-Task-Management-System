@@ -3,22 +3,280 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employee Task Manager</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>Employee Task Management System | Modern Team Productivity</title>
+    <!-- Instant Dark Mode Initializer & Failsafe Controller -->
+    <script>
+        (function() {
+            var theme = localStorage.getItem('etm_theme') || 'light';
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+            var lastToggleTime = 0;
+            window.toggleDarkMode = function(e) {
+                if (e && e.preventDefault) e.preventDefault();
+                var now = Date.now();
+                if (now - lastToggleTime < 350) return;
+                lastToggleTime = now;
+
+                var isDark = document.documentElement.classList.contains('dark-theme');
+                var next = isDark ? 'light' : 'dark';
+                if (next === 'dark') {
+                    document.documentElement.classList.add('dark-theme');
+                } else {
+                    document.documentElement.classList.remove('dark-theme');
+                }
+                try { localStorage.setItem('etm_theme', next); } catch (_) {}
+                var btns = document.querySelectorAll('#themeToggleBtn, .theme-toggle-btn');
+                btns.forEach(function(b) {
+                    b.innerHTML = (next === 'dark') ? '☀️' : '🌙';
+                    b.setAttribute('title', (next === 'dark') ? 'Switch to Light Mode' : 'Switch to Dark Mode');
+                });
+            };
+            document.addEventListener('DOMContentLoaded', function() {
+                var isDark = document.documentElement.classList.contains('dark-theme');
+                var btns = document.querySelectorAll('#themeToggleBtn, .theme-toggle-btn');
+                btns.forEach(function(b) {
+                    b.innerHTML = isDark ? '☀️' : '🌙';
+                    b.setAttribute('title', isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode');
+                });
+            });
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=2.6">
+    <link rel="stylesheet" href="css/landing.css?v=1.2">
+    <link rel="stylesheet" href="css/theme.css?v=1.3">
 </head>
-<body>
+<body class="landing-body">
 
-    <main class="landing">
-        <img src="" alt="Company Logo" class="logo">
-        <h1>Employee Task Management System</h1>
-        <p>Manage your tasks, track progress, and stay organized.</p>
+    <!-- Top Navigation Bar -->
+    <header class="landing-nav">
+        <a href="index.html" class="landing-brand">
+            <img src="images/Etms logo.png" alt="ETMS Logo" class="landing-brand-logo">
+            <span class="landing-brand-title">ETMS Portal</span>
+        </a>
 
-        <!-- Action buttons linking to Login and Register -->
-        <div class="landing-actions">
-            <a href="login.html" class="btn btn-primary">Sign In</a>
-            <a href="register.html" class="btn btn-secondary">Create Account</a>
+        <nav class="landing-nav-links">
+            <a href="#features" class="landing-nav-link">Features</a>
+            <a href="#roles" class="landing-nav-link">Role Hierarchy</a>
+            <a href="dashboard.html" class="landing-nav-link">Dashboard</a>
+        </nav>
+
+        <div class="landing-nav-actions">
+            <button type="button" class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleDarkMode()" aria-label="Toggle Theme" title="Toggle Dark/Light Mode">🌙</button>
+            <a href="login.html" class="btn-nav-login">Sign In</a>
+            <a href="register.html" class="btn-nav-register">Get Started</a>
         </div>
-    </main>
+    </header>
 
+    <!-- Hero Section -->
+    <section class="landing-hero">
+        <div class="hero-pill">
+            <span>✨</span> Enterprise Task &amp; Team Productivity Platform
+        </div>
+
+        <h1 class="hero-title">
+            Smart Task Management for <span class="gradient-text">High-Performing Teams</span>
+        </h1>
+
+        <p class="hero-subtitle">
+            Assign tasks effortlessly between managers and employees, track live progress on visual Kanban boards, collaborate with in-app task discussion, and preview attachments without leaving the page.
+        </p>
+
+        <div class="hero-actions">
+            <a href="register.html" class="btn-hero-primary">
+                <span>Get Started Free</span> →
+            </a>
+            <a href="login.html" class="btn-hero-secondary">
+                <span>Sign In to Dashboard</span> 🚀
+            </a>
+        </div>
+
+        <div class="hero-highlights">
+            <div class="hero-highlight-item">
+                <span>⚡</span> Visual Kanban Board
+            </div>
+            <div class="hero-highlight-item">
+                <span>🔔</span> Real-Time Alerts
+            </div>
+            <div class="hero-highlight-item">
+                <span>📎</span> In-App PDF &amp; Image Viewer
+            </div>
+            <div class="hero-highlight-item">
+                <span>🌓</span> Dark &amp; Light Mode
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive Hero Mockup Card -->
+    <section class="hero-preview-container">
+        <div class="hero-mockup-card">
+            <div class="mockup-top-bar">
+                <div class="mockup-window-controls">
+                    <span class="mockup-window-dot dot-red"></span>
+                    <span class="mockup-window-dot dot-yellow"></span>
+                    <span class="mockup-window-dot dot-green"></span>
+                </div>
+                <div style="font-size:0.8rem; font-weight:600; color:var(--color-text-muted);">
+                    Live Workspace Preview · Employee Task Manager
+                </div>
+                <div>
+                    <span style="font-size:0.75rem; background:#DCFCE7; color:#15803D; padding:2px 8px; border-radius:999px; font-weight:600;">Active</span>
+                </div>
+            </div>
+
+            <!-- Kanban Preview Grid -->
+            <div class="mockup-kanban-grid">
+                <!-- Column: To-Do -->
+                <div class="mockup-col">
+                    <div class="mockup-col-header">
+                        <span>📌 TO-DO (1)</span>
+                    </div>
+                    <div class="mockup-card-item">
+                        <div class="mockup-card-title">API Integration &amp; Documentation</div>
+                        <div class="mockup-card-meta">
+                            <span class="badge badge-warning" style="font-size:0.68rem;padding:2px 6px;">Medium</span>
+                            <span>👤 Sneha Sharma</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column: In Progress -->
+                <div class="mockup-col">
+                    <div class="mockup-col-header">
+                        <span>⚡ IN PROGRESS (1)</span>
+                    </div>
+                    <div class="mockup-card-item">
+                        <div class="mockup-card-title">Attachment Preview &amp; PDF Viewer</div>
+                        <div class="mockup-card-meta">
+                            <span class="badge badge-danger" style="font-size:0.68rem;padding:2px 6px;">High</span>
+                            <span>👤 Shruti Sharma</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column: Completed -->
+                <div class="mockup-col">
+                    <div class="mockup-col-header">
+                        <span>✅ COMPLETED (1)</span>
+                    </div>
+                    <div class="mockup-card-item">
+                        <div class="mockup-card-title">Role-Based Access &amp; Dark Theme</div>
+                        <div class="mockup-card-meta">
+                            <span class="badge badge-success" style="font-size:0.68rem;padding:2px 6px;">Completed</span>
+                            <span>🏢 Manager 1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Core Features Grid -->
+    <section class="landing-features-section" id="features">
+        <div class="section-container">
+            <span class="section-pill">Core Features</span>
+            <h2 class="section-title">Everything Your Organization Needs</h2>
+            <p class="section-subtitle">
+                Designed to make task delegation, daily execution, and communication crystal clear across every department.
+            </p>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon-box">📋</div>
+                    <h3>Interactive Kanban Board</h3>
+                    <p>Organize work visually with drag-and-drop columns (To-Do, In Progress, Completed, Cancelled) and dynamic status filters.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-box">👥</div>
+                    <h3>Role-Based Access Control</h3>
+                    <p>Precise permission boundaries for Admins, Managers, and Employees. Delegation controls ensure managers only assign to active team members.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-box">💬</div>
+                    <h3>Task Discussion Drawer</h3>
+                    <p>Communicate directly inside each task with live discussion notes, avatar timestamps, and author role indicators.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-box">📎</div>
+                    <h3>File &amp; PDF In-App Preview</h3>
+                    <p>Upload images, documents, and PDFs up to 5MB. Preview images with full-screen lightbox and read PDFs directly in the browser.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-box">🔔</div>
+                    <h3>In-App Notification Bell</h3>
+                    <p>Stay informed with instant alerts when tasks are assigned, completed, updated, or commented upon with real-time badge counts.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-box">🌓</div>
+                    <h3>Dark &amp; Light Theme</h3>
+                    <p>Switch between crisp airy light mode and eye-friendly deep navy dark mode with automatic local storage preference saving.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Roles Hierarchy Section -->
+    <section class="landing-roles-section" id="roles">
+        <div class="section-container">
+            <span class="section-pill">Permission Hierarchy</span>
+            <h2 class="section-title">Built for Every Role in Your Organization</h2>
+            <p class="section-subtitle">
+                Every team member sees exactly what they need to get work done without unnecessary clutter.
+            </p>
+
+            <div class="roles-grid">
+                <div class="role-card">
+                    <span class="role-badge role-admin-badge">👑 System Admin</span>
+                    <h3>Administrator</h3>
+                    <ul>
+                        <li>Full system visibility across all tasks &amp; users</li>
+                        <li>Create &amp; manage employee &amp; manager accounts</li>
+                        <li>System configuration &amp; audit oversight</li>
+                    </ul>
+                </div>
+
+                <div class="role-card">
+                    <span class="role-badge role-manager-badge">🏢 Team Manager</span>
+                    <h3>Manager</h3>
+                    <ul>
+                        <li>Assign tasks directly to employees</li>
+                        <li>Monitor team productivity &amp; due dates</li>
+                        <li>Engage in task discussions &amp; review deliverables</li>
+                    </ul>
+                </div>
+
+                <div class="role-card">
+                    <span class="role-badge role-employee-badge">👤 Team Member</span>
+                    <h3>Employee</h3>
+                    <ul>
+                        <li>View assigned work with clean priorities</li>
+                        <li>Create personal self-assigned tasks</li>
+                        <li>Update task statuses &amp; upload attachments</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="landing-footer">
+        <div>
+            © 2026 Employee Task Management System (ETMS). All rights reserved.
+        </div>
+        <div class="footer-status">
+            <span>🟢</span> All Systems Operational
+        </div>
+    </footer>
+
+    <!-- Theme Controller Script -->
+    <script src="js/theme.js?v=1.3"></script>
 </body>
 </html>

@@ -87,6 +87,12 @@ class Task(models.Model):
         default=Status.PENDING,
     )
 
+    category = models.CharField(
+        max_length=50,
+        default="development",
+        blank=True,
+    )
+
     start_date = models.DateField(
         null=True,
         blank=True,

@@ -32,16 +32,18 @@ def visible_tasks_for(user):
     if user.role == User.Role.ADMIN:
         return tasks
 
+    from django.db.models import Q
     profile = getattr(user, "employee_profile", None)  # None if no Employee record
 
     if user.role == User.Role.MANAGER:
-        from django.db.models import Q
         if profile is None:
             return tasks.filter(assigned_by=user)
         return tasks.filter(Q(assigned_to__manager=profile) | Q(assigned_by=user))
 
-    # EMPLOYEE: only their own tasks
-    return tasks.filter(assigned_to=profile) if profile else tasks.none()
+    # EMPLOYEE: tasks assigned to them OR tasks created by them
+    if profile:
+        return tasks.filter(Q(assigned_to=profile) | Q(assigned_by=user))
+    return tasks.filter(assigned_by=user)
 
 
 class BaseTaskListView(generics.ListAPIView):
@@ -65,14 +67,28 @@ class TaskListCreateView(BaseTaskListView):
     """GET /api/tasks/  and  POST /api/tasks/"""
 
     def get_permissions(self):
-        if self.request.method == "POST":
-            return [IsAdminOrManager()]
         return [IsAuthenticated()]
 
     def post(self, request, *args, **kwargs):
         serializer = TaskWriteSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        task = serializer.save(assigned_by=request.user)  # who created it is never trusted from input
+        task = serializer.save(assigned_by=request.user)  # who created it is set to request.user
+
+        # Auto-create notification for assigned employee (only if assigned to someone else)
+        try:
+            if task.assigned_to and task.assigned_to.user and task.assigned_to.user != request.user:
+                from notifications.models import Notification
+                Notification.objects.create(
+                    user=task.assigned_to.user,
+                    title="New Task Assigned",
+                    message=f"You have been assigned a new task: \"{task.title}\" "
+                            f"by {request.user.get_full_name() or request.user.email}. "
+                            f"Deadline: {task.deadline or 'Not set'}.",
+                    notification_type=Notification.NotificationType.TASK_ASSIGNED,
+                )
+        except Exception:
+            pass  # Never let notification failure break task creation
+
         return success_response("Task created successfully",
                                 TaskSerializer(task).data, status.HTTP_201_CREATED)
 
@@ -122,11 +138,7 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         return visible_tasks_for(self.request.user)
 
     def get_permissions(self):
-        if self.request.method == "DELETE":
-            return [IsAdmin()]
-        if self.request.method == "PUT":
-            return [IsAdminOrManager()]
-        return [IsAuthenticated()]  # GET and PATCH; PATCH is limited inside update()
+        return [IsAuthenticated()]
 
     def retrieve(self, request, *args, **kwargs):
         return success_response("Task fetched successfully", TaskSerializer(self.get_object()).data)
@@ -135,21 +147,56 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         partial = kwargs.pop("partial", False)
         task = self.get_object()
 
-        if request.user.role == User.Role.EMPLOYEE:
+        is_creator = task.assigned_by_id == request.user.id
+        if request.user.role == User.Role.EMPLOYEE and not is_creator:
             if set(request.data.keys()) - {"status"}:
                 raise PermissionDenied("Employees can only update the task status.")
-            serializer = TaskStatusSerializer(task, data=request.data)  # status required
+            serializer = TaskStatusSerializer(task, data=request.data)
         else:
             serializer = TaskWriteSerializer(
                 task, data=request.data, partial=partial, context={"request": request}
             )
 
         serializer.is_valid(raise_exception=True)
+        old_status = task.status  # capture before save
         task = serializer.save()
+
+        # Auto-create notifications after update
+        try:
+            from notifications.models import Notification
+            new_status = task.status
+
+            # Notify creator when employee marks task completed
+            if old_status != "COMPLETED" and new_status == "COMPLETED":
+                if task.assigned_by and task.assigned_by != request.user:
+                    Notification.objects.create(
+                        user=task.assigned_by,
+                        title="Task Completed ✅",
+                        message=f"\"{task.title}\" has been marked as completed by "
+                                f"{request.user.get_full_name() or request.user.email}.",
+                        notification_type=Notification.NotificationType.TASK_COMPLETED,
+                    )
+
+            # Notify assigned employee when their task is updated by someone else
+            elif task.assigned_to and task.assigned_to.user and task.assigned_to.user != request.user:
+                Notification.objects.create(
+                    user=task.assigned_to.user,
+                    title="Task Updated",
+                    message=f"Your task \"{task.title}\" has been updated by "
+                            f"{request.user.get_full_name() or request.user.email}.",
+                    notification_type=Notification.NotificationType.TASK_UPDATED,
+                )
+        except Exception:
+            pass  # Never let notification failure break task update
+
         return success_response("Task updated successfully", TaskSerializer(task).data)
 
     def destroy(self, request, *args, **kwargs):
-        self.get_object().delete()
+        task = self.get_object()
+        is_creator = task.assigned_by_id == request.user.id
+        if request.user.role == User.Role.EMPLOYEE and not is_creator and request.user.role != User.Role.ADMIN:
+            raise PermissionDenied("You can only delete tasks you created.")
+        task.delete()
         return success_response("Task deleted successfully", status_code=status.HTTP_204_NO_CONTENT)
     
     # ---------------------------------------------------------------
@@ -176,6 +223,30 @@ class TaskCommentListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         comment = serializer.save(task=task, user=request.user)
+
+        # Notify the other party about the new comment
+        try:
+            from notifications.models import Notification
+            recipient = None
+            if task.assigned_to and task.assigned_to.user == request.user:
+                if task.assigned_by and task.assigned_by != request.user:
+                    recipient = task.assigned_by
+            else:
+                if task.assigned_to and task.assigned_to.user and task.assigned_to.user != request.user:
+                    recipient = task.assigned_to.user
+
+            if recipient:
+                sender_name = request.user.get_full_name() or request.user.username
+                comment_preview = comment.comment[:80] + ("..." if len(comment.comment) > 80 else "")
+                Notification.objects.create(
+                    user=recipient,
+                    title=f"New comment on: {task.title}",
+                    message=f"{sender_name}: \"{comment_preview}\"",
+                    notification_type=Notification.NotificationType.TASK_UPDATED,
+                )
+        except Exception:
+            pass  # Never let notification failure break comment creation
+
         return success_response("Comment added successfully",
                                 TaskCommentSerializer(comment).data, status.HTTP_201_CREATED)
 

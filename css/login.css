@@ -16,7 +16,7 @@ input[type="password"]::-ms-clear {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(160deg, #1E2A44 0%, #2A3A63 100%);
+    background: linear-gradient(150deg, #050C6C 0%, #08129C 45%, #0038DE 100%);
     padding: var(--space-md, 16px);
 }
 
@@ -24,7 +24,7 @@ input[type="password"]::-ms-clear {
 .login-container {
     background-color: #FFFFFF;
     border-radius: var(--radius-md, 12px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 25px rgba(8, 18, 156, 0.15);
     padding: var(--space-xl, 32px);
     width: 100%;
     max-width: 390px;
@@ -40,11 +40,11 @@ input[type="password"]::-ms-clear {
     font-size: 1.4rem;
     font-weight: 700;
     margin-bottom: var(--space-xs, 4px);
-    color: #1F2937;
+    color: #0E1726;
 }
 
 .login-header p {
-    color: #6B7280;
+    color: #5B6E88;
     font-size: 0.9rem;
 }
 
@@ -58,25 +58,25 @@ input[type="password"]::-ms-clear {
     font-size: 0.82rem;
     font-weight: 600;
     margin-bottom: var(--space-xs, 5px);
-    color: #374151;
+    color: #2D3748;
 }
 
 .form-group input[type="text"],
 .form-group input[type="password"] {
     width: 100%;
     padding: 10px 14px;
-    border: 1px solid #D1D5DB;
+    border: 1px solid #DCE5F2;
     border-radius: var(--radius-sm, 6px);
     background-color: #FFFFFF;
     font-size: 0.95rem;
-    color: #1F2937;
+    color: #0E1726;
     outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .form-group input:focus {
-    border-color: #4F46E5;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    border-color: var(--color-primary, #0038DE);
+    box-shadow: 0 0 0 3px rgba(0, 56, 222, 0.2);
 }
 
 /* 6. Password Field & Show/Hide Button */
@@ -96,16 +96,17 @@ input[type="password"]::-ms-clear {
     transform: translateY(-50%);
     background: none;
     border: none;
-    color: #4F46E5;
+    color: var(--color-primary, #0038DE);
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     padding: 4px 6px;
     border-radius: 4px;
+    transition: opacity 0.2s ease;
 }
 
 .toggle-password:hover {
-    opacity: 0.8;
+    opacity: 0.75;
 }
 
 /* 7. Form Options */
@@ -122,31 +123,33 @@ input[type="password"]::-ms-clear {
     align-items: center;
     gap: 6px;
     font-size: 0.85rem;
-    color: #374151;
+    color: #2D3748;
     cursor: pointer;
 }
 
 .checkbox-label input[type="checkbox"] {
-    accent-color: #4F46E5;
+    accent-color: var(--color-primary, #0038DE);
     cursor: pointer;
 }
 
 .forgot-link {
     font-size: 0.85rem;
-    color: #4F46E5;
+    color: var(--color-primary, #0038DE);
     text-decoration: none;
     font-weight: 500;
+    transition: color 0.2s ease;
 }
 
 .forgot-link:hover {
     text-decoration: underline;
+    color: var(--color-accent, #74B8FD);
 }
 
 /* 8. Button & Footer */
 .login-container .btn-primary {
     width: 100%;
     padding: 12px;
-    background-color: #4F46E5;
+    background-color: var(--color-primary, #0038DE);
     color: #FFFFFF;
     border: none;
     border-radius: var(--radius-sm, 6px);
@@ -157,7 +160,7 @@ input[type="password"]::-ms-clear {
 }
 
 .login-container .btn-primary:hover {
-    background-color: #4338CA;
+    background-color: var(--color-primary-dark, #08129C);
 }
 
 .login-footer-text {

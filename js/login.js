@@ -1,4 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // If already logged in, redirect straight to dashboard
+    const existingToken = localStorage.getItem('etm_access_token');
+    const existingUser = localStorage.getItem('etm_current_user');
+    if (existingToken && existingUser) {
+        window.location.replace('dashboard.html');
+        return;
+    }
+
     const loginForm = document.getElementById('loginForm');
     if (!loginForm) return;
 
@@ -93,72 +101,46 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.removeItem('etm_remembered_username');
         }
 
+        const originalBtnText = submitBtn.textContent;
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Signing in...';
+        submitBtn.textContent = 'Signing in to Database...';
 
         try {
-            await new Promise((resolve) => setTimeout(resolve, 600));
+            const response = await apiRequest('/auth/login/', {
+                method: 'POST',
+                body: JSON.stringify({ username, password })
+            });
 
-            // Default users with complete profile data
-            const defaultUsers = [
-                {
-                    username: 'admin',
-                    password: 'admin123',
-                    fullName: 'System Administrator',
-                    email: 'admin@company.com',
-                    department: 'Operations & IT',
-                    role: 'Administrator',
+            if (response.ok && response.data?.success) {
+                const authData = response.data.data;
+                localStorage.setItem('etm_access_token', authData.access);
+                localStorage.setItem('etm_refresh_token', authData.refresh);
+
+                const user = authData.user || {};
+                const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
+
+                const sessionUser = {
+                    id: user.id,
+                    username: user.username,
+                    email: user.email,
+                    fullName: fullName,
+                    role: user.role || 'Employee',
+                    department: user.department || 'Operations',
                     avatar: 'images/profile.png'
-                },
-                {
-                    username: 'employee',
-                    password: 'password123',
-                    fullName: 'Alex Morgan',
-                    email: 'alex.morgan@company.com',
-                    department: 'Product Engineering',
-                    role: 'Software Engineer',
-                    avatar: 'images/profile.png'
-                }
-            ];
+                };
 
-            const registeredUsers = JSON.parse(localStorage.getItem('etm_users') || '[]');
-            const allUsers = [...defaultUsers, ...registeredUsers];
-
-            const foundUser = allUsers.find(u => 
-                (u.username && u.username.toLowerCase() === username.toLowerCase()) || 
-                (u.email && u.email.toLowerCase() === username.toLowerCase())
-            );
-
-            if (!foundUser) {
-                showError(usernameInput, usernameError, 'Account not found.');
-                return;
+                localStorage.setItem('etm_current_user', JSON.stringify(sessionUser));
+                window.location.replace('dashboard.html');
+            } else {
+                const errorMsg = response.data?.message || 'Invalid username or password.';
+                showError(passwordInput, passwordError, errorMsg);
             }
-
-            if (foundUser.password !== password) {
-                showError(passwordInput, passwordError, 'Incorrect password. Please try again.');
-                return;
-            }
-
-            // Ensure profile fields exist even for custom registered users
-            const sessionUser = {
-                username: foundUser.username,
-                fullName: foundUser.fullName || foundUser.name || foundUser.username,
-                email: foundUser.email || `${foundUser.username}@company.com`,
-                department: foundUser.department || 'General',
-                role: foundUser.role || 'Employee',
-                avatar: foundUser.avatar || 'images/profile.png'
-            };
-
-            // SAVE SESSION: Read by profile.js and dashboard.js
-            localStorage.setItem('etm_current_user', JSON.stringify(sessionUser));
-
-            window.location.href = 'dashboard.html';
 
         } catch (error) {
-            showError(passwordInput, passwordError, 'An error occurred while logging in.');
+            showError(passwordInput, passwordError, error.message || 'An error occurred while connecting to the database server.');
         } finally {
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Login';
+            submitBtn.textContent = originalBtnText;
         }
     });
 });

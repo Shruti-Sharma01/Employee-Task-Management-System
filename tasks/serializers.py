@@ -17,7 +17,7 @@ class TaskSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             "id", "title", "description", "assigned_to", "assigned_by",
-            "priority", "status", "start_date", "deadline", "completed_at",
+            "priority", "status", "category", "start_date", "deadline", "completed_at",
             "is_overdue", "created_at", "updated_at",
         ]
 
@@ -39,26 +39,41 @@ class TaskSerializer(serializers.ModelSerializer):
 
 
 class TaskWriteSerializer(serializers.ModelSerializer):
-    """Input for ADMIN / MANAGER (create and update)."""
+    """Input for create and update."""
 
-    assigned_to = serializers.PrimaryKeyRelatedField(queryset=Employee.objects.all())
+    assigned_to = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(), required=False, allow_null=True
+    )
 
     class Meta:
         model = Task
-        fields = ["title", "description", "assigned_to", "priority",
-                  "status", "start_date", "deadline"]
+        fields = [
+            "title", "description", "assigned_to", "priority",
+            "status", "category", "start_date", "deadline"
+        ]
 
     def validate_assigned_to(self, employee):
+        if employee is None:
+            return employee
         if not employee.is_active:
             raise serializers.ValidationError("Cannot assign a task to an inactive employee.")
 
-        user = self.context["request"].user
-        if user.role == User.Role.MANAGER:
-            profile = getattr(user, "employee_profile", None)
-            if profile is None or employee.manager_id != profile.pk:
-                raise serializers.ValidationError(
-                    "Managers can only assign tasks to their own team members."
-                )
+        request = self.context.get("request")
+        if request and request.user:
+            user = request.user
+            # EMPLOYEE can only assign tasks to themselves
+            if user.role == User.Role.EMPLOYEE:
+                profile = getattr(user, "employee_profile", None)
+                if profile is None or employee.pk != profile.pk:
+                    raise serializers.ValidationError(
+                        "Employees can only assign tasks to themselves."
+                    )
+            elif user.role == User.Role.MANAGER:
+                profile = getattr(user, "employee_profile", None)
+                if profile is None or (employee.manager_id != profile.pk and employee.pk != profile.pk):
+                    raise serializers.ValidationError(
+                        "Managers can only assign tasks to their team members or themselves."
+                    )
         return employee
 
     def validate(self, attrs):
@@ -68,6 +83,30 @@ class TaskWriteSerializer(serializers.ModelSerializer):
         if start and deadline and deadline < start:
             raise serializers.ValidationError({"deadline": "Deadline cannot be before the start date."})
         return attrs
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        user = request.user if request else None
+        if user and ("assigned_to" not in validated_data or validated_data["assigned_to"] is None):
+            profile = getattr(user, "employee_profile", None)
+            if profile is None:
+                from employees.models import Employee
+                from django.utils import timezone
+                emp_id = f"EMP{user.id:04d}"
+                full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+                profile, _ = Employee.objects.get_or_create(
+                    user=user,
+                    defaults={
+                        "employee_id": emp_id,
+                        "full_name": full_name,
+                        "email": user.email or f"{user.username}@company.com",
+                        "department": "General",
+                        "designation": user.role.capitalize(),
+                        "joining_date": timezone.localdate(),
+                    }
+                )
+            validated_data["assigned_to"] = profile
+        return super().create(validated_data)
 
 
 class TaskStatusSerializer(serializers.ModelSerializer):

@@ -30,3 +30,28 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.username} ({self.role})"
+
+
+class PasswordResetOTP(models.Model):
+    """Stores OTP codes for forgot password verification."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="reset_otps")
+    otp = models.CharField(max_length=6)
+    reset_token = models.CharField(max_length=64, unique=True, db_index=True)
+    is_verified = models.BooleanField(default=False)
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def is_expired(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        return (timezone.now() - self.created_at) > timedelta(minutes=10)
+
+    def is_valid(self):
+        return not self.is_used and not self.is_expired()
+
+    def __str__(self):
+        return f"OTP for {self.user.email} [{self.otp}]"

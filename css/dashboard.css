@@ -1,3 +1,23 @@
+/* =============================================================
+   dashboard.css  (v2.5)
+   All styles for the Analytics Dashboard
+   ============================================================= */
+
+/* ── Page Header ───────────────────────────────────────────── */
+.dashboard-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-xl);
+}
+
+.dashboard-page-header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+/* ── Stat Cards ────────────────────────────────────────────── */
 .stats-cards {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -5,85 +25,320 @@
     margin-bottom: var(--space-xl);
 }
 
-.stats-cards .card {
-    text-align: center;
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-lg) !important;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+}
 
-/* ---------------------------------------------------------
-   Stat Number
-   --------------------------------------------------------- */
+.stat-icon {
+    font-size: 2rem;
+    width: 54px;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    flex-shrink: 0;
+}
+
+.stat-icon-total    { background: rgba(74,111,165,0.12); }
+.stat-icon-pending  { background: rgba(230,168,33,0.12); }
+.stat-icon-progress { background: rgba(52,152,219,0.12); }
+.stat-icon-completed{ background: rgba(39,174,96,0.12);  }
+
+.stat-card h3 {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+}
 
 .stat-number {
     font-family: var(--font-heading);
     font-size: 2rem;
     font-weight: 700;
     color: var(--color-primary);
-    margin-top: var(--space-xs);
+    line-height: 1;
 }
 
+#pendingTasksCard  .stat-number { color: var(--color-warning); }
+#progressTasksCard .stat-number { color: var(--color-primary); }
+#completedTasksCard .stat-number{ color: var(--color-success); }
 
-/* Color-code each card by what it represents */
-
-#pendingTasksCard .stat-number {
-    color: var(--color-warning);
+/* ── Overdue Alert Section ─────────────────────────────────── */
+.overdue-section {
+    background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
+    border-radius: var(--radius-md);
+    padding: var(--space-md) var(--space-lg);
+    margin-bottom: var(--space-xl);
+    box-shadow: 0 4px 20px rgba(231,76,60,0.30);
+    animation: overdueSlideIn 0.4s ease;
 }
 
-#progressTasksCard .stat-number {
-    color: var(--color-info);
+@keyframes overdueSlideIn {
+    from { opacity: 0; transform: translateY(-12px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
-#completedTasksCard .stat-number {
-    color: var(--color-success);
+.overdue-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: var(--space-md);
+    color: #fff;
+    font-size: 1rem;
 }
 
+.overdue-pulse {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #fff;
+    animation: pulse 1.2s infinite;
+    flex-shrink: 0;
+}
 
-/* ---------------------------------------------------------
-   Progress Bar Section
-   --------------------------------------------------------- */
+@keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.7); }
+    70%  { box-shadow: 0 0 0 8px rgba(255,255,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+}
 
+.overdue-count-badge {
+    background: rgba(255,255,255,0.25);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 2px 9px;
+    border-radius: 999px;
+}
+
+.overdue-cards-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.overdue-task-chip {
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 8px;
+    padding: 7px 14px;
+    color: #fff;
+    font-size: 0.82rem;
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 160px;
+}
+
+.overdue-task-chip strong {
+    font-size: 0.88rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.overdue-task-chip span {
+    opacity: 0.80;
+    font-size: 0.78rem;
+}
+
+/* ── Progress Bar Section ──────────────────────────────────── */
 .progress-section {
     background-color: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: var(--space-lg);
     margin-bottom: var(--space-xl);
+    box-shadow: var(--shadow-card);
 }
 
-
-/* Progress Bar Background */
-.progress-bar-container {
-    width: 100%;
-    height: 12px;
-    background-color: var(--color-bg);
-    border-radius: 999px;
-    overflow: hidden;
+.progress-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: var(--space-sm);
 }
 
+.progress-section-header h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
 
-/* Actual Progress */
+.progress-badge {
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 3px 11px;
+    border-radius: 999px;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 10px;
+    background-color: #EBF2FA;
+    border-radius: 999px;
+    overflow: hidden;
+}
 
 .progress-bar {
     height: 100%;
-    background-color: var(--color-success);
+    background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
     border-radius: 999px;
-    transition: width 0.3s ease;
+    transition: width 0.6s cubic-bezier(.4,0,.2,1);
 }
 
+/* ── Charts Row ────────────────────────────────────────────── */
+.charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1.6fr;
+    gap: var(--space-lg);
+    margin-bottom: var(--space-xl);
+}
 
-/* Progress Percentage */
+.chart-card {
+    padding: var(--space-lg) !important;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
 
-#progressPercent {
-    font-size: 0.85rem;
+.chart-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.chart-card-header h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.chart-subtitle {
+    font-size: 0.78rem;
     color: var(--color-text-muted);
 }
 
+.chart-wrapper {
+    position: relative;
+    width: 100%;
+    height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
-/* ---------------------------------------------------------
-   Recent Tasks Section
-   --------------------------------------------------------- */
+/* Doughnut: center label overlay */
+.doughnut-wrapper {
+    position: relative;
+}
 
+.doughnut-center-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+    line-height: 1.1;
+}
+
+.doughnut-center-label span {
+    display: block;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.doughnut-center-label small {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Chart legend */
+.chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* ── Recent Tasks Section ──────────────────────────────────── */
 .recent-tasks {
     margin-bottom: var(--space-xl);
+}
+
+.recent-tasks-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-md);
+}
+
+.recent-tasks-header h2 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+    .stats-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .charts-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .stats-cards {
+        grid-template-columns: 1fr 1fr;
+    }
+    .stat-number {
+        font-size: 1.5rem;
+    }
+    .chart-wrapper {
+        height: 180px;
+    }
+}
+
+@media (max-width: 400px) {
+    .stats-cards {
+        grid-template-columns: 1fr;
+    }
 }

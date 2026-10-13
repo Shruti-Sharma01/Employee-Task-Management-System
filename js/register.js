@@ -299,38 +299,53 @@ document.addEventListener('DOMContentLoaded', () => {
         const password = passwordInput.value;
         const fullName = fullNameInput.value.trim();
         const department = departmentSelect.value;
-
-        // Retrieve registered users from localStorage
-        const storedUsers = JSON.parse(localStorage.getItem('etm_users') || '[]');
-
-        // Prevent duplicates
-        if (storedUsers.some(u => u.username.toLowerCase() === username.toLowerCase())) {
-            showError(usernameInput, errors.username, 'This username is already taken.');
-            return;
-        }
-
-        if (storedUsers.some(u => u.email.toLowerCase() === email.toLowerCase())) {
-            showError(emailInput, errors.email, 'This email is already in use.');
-            return;
-        }
+        const roleSelect = document.getElementById('roleSelect');
+        const selectedRole = roleSelect ? roleSelect.value : 'EMPLOYEE';
 
         const originalBtnText = submitBtn.textContent;
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Creating Account...';
+        submitBtn.textContent = 'Creating Account in Database...';
 
         try {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            const nameParts = fullName.split(' ');
+            const firstName = nameParts[0] || username;
+            const lastName = nameParts.slice(1).join(' ') || '';
 
-            // Save new user
-            const newUser = { fullName, email, username, department, password };
-            storedUsers.push(newUser);
-            localStorage.setItem('etm_users', JSON.stringify(storedUsers));
+            const payload = {
+                username: username,
+                email: email,
+                first_name: firstName,
+                last_name: lastName,
+                department: department,
+                password: password,
+                confirm_password: confirmPasswordInput.value,
+                role: selectedRole
+            };
 
-            // Pre-populate username on login page
-            localStorage.setItem('etm_remembered_username', username);
+            const response = await apiRequest('/auth/register/', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
 
-            alert('Account created successfully! You can now log in.');
-            window.location.href = 'login.html';
+            if (response.ok && response.data?.success) {
+                // Pre-populate username on login page
+                localStorage.setItem('etm_remembered_username', username);
+                alert('Account successfully created and saved to Database! You can now log in.');
+                window.location.href = 'login.html';
+            } else {
+                let errorMsg = response.data?.message || 'Registration failed.';
+                if (response.data?.errors) {
+                    const errorObj = response.data.errors;
+                    const errorMessages = Object.entries(errorObj).map(([field, err]) => {
+                        const msg = Array.isArray(err) ? err.join(' ') : String(err);
+                        return `${field}: ${msg}`;
+                    });
+                    if (errorMessages.length > 0) {
+                        errorMsg = errorMessages.join('\n');
+                    }
+                }
+                showError(confirmPasswordInput, errors.confirmPassword, errorMsg);
+            }
         } catch (error) {
             showError(confirmPasswordInput, errors.confirmPassword, error.message || 'Something went wrong.');
         } finally {

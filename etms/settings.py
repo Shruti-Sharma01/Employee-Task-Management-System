@@ -27,8 +27,8 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY is missing. Add it to your .env file.")
 
-DEBUG = os.getenv("DEBUG", "False") == "True"  # defaults to False (safe)
-ALLOWED_HOSTS = get_list("ALLOWED_HOSTS", "localhost,127.0.0.1")
+DEBUG = os.getenv("DEBUG", "False") == "True"
+ALLOWED_HOSTS = ["*"] if DEBUG else get_list("ALLOWED_HOSTS", "localhost,127.0.0.1")
 
 # ---------------------------------------------------------------
 # Applications
@@ -70,7 +70,7 @@ ROOT_URLCONF = "etms.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -165,4 +165,16 @@ SIMPLE_JWT = {
 # ---------------------------------------------------------------
 # CORS (which frontends may call this API)
 # ---------------------------------------------------------------
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOWED_ORIGINS = get_list("CORS_ALLOWED_ORIGINS")
+
+# ---------------------------------------------------------------
+# Email
+# ---------------------------------------------------------------
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "ETMS <noreply@etms.local>")
