@@ -96,6 +96,14 @@ if os.getenv("DATABASE_URL"):
             conn_health_checks=True,
         )
     }
+elif os.getenv("RENDER"):
+    # Running on Render without a remote database URL - use SQLite so build succeeds
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 elif os.getenv("DB_NAME"):
     DATABASES = {
         "default": {
