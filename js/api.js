@@ -4,9 +4,12 @@
  * Directly connects frontend to Django REST Framework backend and PostgreSQL database.
  */
 
-const API_BASE_URL = (window.location.port === '8000') 
-    ? '/api' 
-    : 'http://127.0.0.1:8000/api';
+// Smart API base URL: Uses relative '/api' on Render / production, and only targets port 8000 when running on local Live Server (port 5500)
+const isLocalLiveServer = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') && window.location.port === '5500';
+
+const API_BASE_URL = isLocalLiveServer 
+    ? 'http://127.0.0.1:8000/api' 
+    : '/api';
 
 /**
  * Universal API Request with automatic token attachment & refresh handling
@@ -29,7 +32,7 @@ async function apiRequest(endpoint, options = {}) {
         response = await fetch(url, { ...options, headers });
     } catch (networkError) {
         console.error('API Network Error:', networkError);
-        throw new Error('Could not connect to database backend. Please ensure the Django server is running on http://127.0.0.1:8000');
+        throw new Error('Could not connect to backend server. Please check your network connection.');
     }
 
     // Attempt token refresh on 401
