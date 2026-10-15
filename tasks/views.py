@@ -329,77 +329,333 @@ class AttachmentDeleteView(generics.DestroyAPIView):
 
 
 # ---------------------------------------------------------------
-# CSV Export
+# Exports — CSV / Excel / PDF
 # ---------------------------------------------------------------
 import csv
+import io
+from datetime import date
+
 from django.http import HttpResponse
 from rest_framework.views import APIView
 
 
+# ── Shared helper ────────────────────────────────────────────────────────────
+EXPORT_HEADERS = [
+    "Task ID", "Title", "Description", "Category",
+    "Priority", "Status",
+    "Assigned To", "Assigned By",
+    "Start Date", "Deadline", "Completed At", "Created At",
+]
+
+
+def _get_filtered_qs(request):
+    """Return the role-filtered queryset with optional query-param filters applied."""
+    qs = visible_tasks_for(request.user).select_related("assigned_to__user", "assigned_by")
+
+    status_p   = request.query_params.get("status")
+    priority_p = request.query_params.get("priority")
+    search_p   = request.query_params.get("search")
+
+    if status_p and status_p.upper() in [c[0] for c in Task.Status.choices]:
+        qs = qs.filter(status=status_p.upper())
+    if priority_p and priority_p.upper() in [c[0] for c in Task.Priority.choices]:
+        qs = qs.filter(priority=priority_p.upper())
+    if search_p:
+        qs = qs.filter(title__icontains=search_p)
+
+    return qs
+
+
+def _task_row(task):
+    """Return a list of values for one task — used by all three exporters."""
+    assigned_to = ""
+    if task.assigned_to:
+        assigned_to = task.assigned_to.full_name or getattr(
+            task.assigned_to.user, "get_full_name", lambda: ""
+        )()
+
+    assigned_by = ""
+    if task.assigned_by:
+        assigned_by = task.assigned_by.get_full_name() or task.assigned_by.username
+
+    return [
+        task.pk,
+        task.title,
+        task.description,
+        task.category,
+        task.get_priority_display(),
+        task.get_status_display(),
+        assigned_to,
+        assigned_by,
+        str(task.start_date) if task.start_date else "",
+        str(task.deadline) if task.deadline else "",
+        task.completed_at.strftime("%Y-%m-%d %H:%M") if task.completed_at else "",
+        task.created_at.strftime("%Y-%m-%d %H:%M"),
+    ]
+
+
+def _today_str():
+    return date.today().strftime("%Y-%m-%d")
+
+
+# ── CSV ───────────────────────────────────────────────────────────────────────
 class TaskExportCSVView(APIView):
-    """GET /api/tasks/export/
-    Returns a CSV of all tasks visible to the current user.
-    Supports the same query params as TaskListCreateView:
-      ?status=PENDING&priority=HIGH&search=...
-    """
+    """GET /api/tasks/export/csv/"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = visible_tasks_for(request.user).select_related(
-            "assigned_to__user", "assigned_by"
-        )
-
-        # ── Apply optional filters ─────────────────────────────────────────
-        status_param   = request.query_params.get("status")
-        priority_param = request.query_params.get("priority")
-        search_param   = request.query_params.get("search")
-
-        if status_param and status_param.upper() in [c[0] for c in Task.Status.choices]:
-            qs = qs.filter(status=status_param.upper())
-
-        if priority_param and priority_param.upper() in [c[0] for c in Task.Priority.choices]:
-            qs = qs.filter(priority=priority_param.upper())
-
-        if search_param:
-            qs = qs.filter(title__icontains=search_param)
-
-        # ── Build CSV ──────────────────────────────────────────────────────
+        qs = _get_filtered_qs(request)
         response = HttpResponse(content_type="text/csv")
-        response["Content-Disposition"] = 'attachment; filename="etms_tasks.csv"'
+        response["Content-Disposition"] = f'attachment; filename="ETMS_Tasks_{_today_str()}.csv"'
 
         writer = csv.writer(response)
-        writer.writerow([
-            "Task ID", "Title", "Description", "Category",
-            "Priority", "Status",
-            "Assigned To", "Assigned By",
-            "Start Date", "Deadline", "Completed At",
-            "Created At",
-        ])
-
+        writer.writerow(EXPORT_HEADERS)
         for task in qs:
-            assigned_to_name = ""
-            if task.assigned_to:
-                assigned_to_name = task.assigned_to.full_name or getattr(
-                    task.assigned_to.user, "get_full_name", lambda: ""
-                )()
-
-            assigned_by_name = ""
-            if task.assigned_by:
-                assigned_by_name = task.assigned_by.get_full_name() or task.assigned_by.username
-
-            writer.writerow([
-                task.pk,
-                task.title,
-                task.description,
-                task.category,
-                task.get_priority_display(),
-                task.get_status_display(),
-                assigned_to_name,
-                assigned_by_name,
-                task.start_date or "",
-                task.deadline or "",
-                task.completed_at.strftime("%Y-%m-%d %H:%M") if task.completed_at else "",
-                task.created_at.strftime("%Y-%m-%d %H:%M"),
-            ])
+            writer.writerow(_task_row(task))
 
         return response
+
+
+# ── Excel (.xlsx) ─────────────────────────────────────────────────────────────
+class TaskExportExcelView(APIView):
+    """GET /api/tasks/export/excel/"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        except ImportError:
+            return HttpResponse("openpyxl not installed", status=500)
+
+        qs = _get_filtered_qs(request)
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Tasks"
+
+        # ── Header row styling ─────────────────────────────────────────────
+        header_font  = Font(bold=True, color="FFFFFF", size=11)
+        header_fill  = PatternFill("solid", fgColor="1E3A5F")
+        center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        left_align   = Alignment(horizontal="left",   vertical="center", wrap_text=True)
+        thin_border  = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
+        )
+
+        # Priority colours
+        priority_colors = {"High": "FFD6D6", "Medium": "FFF3CD", "Low": "D4EDDA"}
+        status_colors   = {
+            "Pending": "FFF3CD", "In Progress": "CCE5FF",
+            "Completed": "D4EDDA", "Cancelled": "E2E3E5",
+        }
+
+        col_widths = [10, 30, 40, 15, 12, 14, 22, 22, 13, 13, 18, 18]
+        for i, (header, width) in enumerate(zip(EXPORT_HEADERS, col_widths), start=1):
+            cell = ws.cell(row=1, column=i, value=header)
+            cell.font      = header_font
+            cell.fill      = header_fill
+            cell.alignment = center_align
+            cell.border    = thin_border
+            ws.column_dimensions[cell.column_letter].width = width
+
+        ws.row_dimensions[1].height = 22
+
+        # ── Data rows ──────────────────────────────────────────────────────
+        for row_idx, task in enumerate(qs, start=2):
+            row_data = _task_row(task)
+            priority_label = task.get_priority_display()
+            status_label   = task.get_status_display()
+
+            for col_idx, value in enumerate(row_data, start=1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                cell.border    = thin_border
+                cell.alignment = left_align
+
+                # Colour-code priority column (col 5) and status column (col 6)
+                if col_idx == 5 and priority_label in priority_colors:
+                    cell.fill = PatternFill("solid", fgColor=priority_colors[priority_label])
+                if col_idx == 6 and status_label in status_colors:
+                    cell.fill = PatternFill("solid", fgColor=status_colors[status_label])
+
+            ws.row_dimensions[row_idx].height = 18
+
+        # ── Freeze header row ──────────────────────────────────────────────
+        ws.freeze_panes = "A2"
+
+        # ── Auto-filter ────────────────────────────────────────────────────
+        ws.auto_filter.ref = ws.dimensions
+
+        # ── Stream to response ─────────────────────────────────────────────
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        response = HttpResponse(
+            buf.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="ETMS_Tasks_{_today_str()}.xlsx"'
+        return response
+
+
+# ── PDF ───────────────────────────────────────────────────────────────────────
+class TaskExportPDFView(APIView):
+    """GET /api/tasks/export/pdf/"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            from reportlab.lib.pagesizes import A4, landscape
+            from reportlab.lib import colors
+            from reportlab.lib.units import cm
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.platypus import (
+                SimpleDocTemplate, Table, TableStyle,
+                Paragraph, Spacer, HRFlowable,
+            )
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        except ImportError:
+            return HttpResponse("reportlab not installed", status=500)
+
+        qs   = _get_filtered_qs(request)
+        user = request.user
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buf,
+            pagesize=landscape(A4),
+            leftMargin=1.5*cm, rightMargin=1.5*cm,
+            topMargin=1.5*cm, bottomMargin=1.5*cm,
+            title="ETMS Task Report",
+        )
+
+        styles = getSampleStyleSheet()
+        BLACK  = colors.black
+        NAVY   = colors.HexColor("#1E3A5F")
+        LGRAY  = colors.HexColor("#F2F2F2")
+        MGRAY  = colors.HexColor("#CCCCCC")
+        WHITE  = colors.white
+
+        # Colour maps
+        priority_map = {
+            "High": colors.HexColor("#FFD6D6"),
+            "Medium": colors.HexColor("#FFF3CD"),
+            "Low": colors.HexColor("#D4EDDA"),
+        }
+        status_map = {
+            "Pending":     colors.HexColor("#FFF3CD"),
+            "In Progress": colors.HexColor("#CCE5FF"),
+            "Completed":   colors.HexColor("#D4EDDA"),
+            "Cancelled":   colors.HexColor("#E2E3E5"),
+        }
+
+        title_style = ParagraphStyle(
+            "title", fontName="Helvetica-Bold", fontSize=16,
+            textColor=NAVY, spaceAfter=4, alignment=TA_LEFT,
+        )
+        sub_style = ParagraphStyle(
+            "sub", fontName="Helvetica", fontSize=9,
+            textColor=colors.HexColor("#555555"), spaceAfter=2,
+        )
+        cell_style = ParagraphStyle(
+            "cell", fontName="Helvetica", fontSize=8, leading=11,
+        )
+        hdr_style = ParagraphStyle(
+            "hdr", fontName="Helvetica-Bold", fontSize=8,
+            textColor=WHITE, leading=11, alignment=TA_CENTER,
+        )
+
+        story = []
+
+        # ── Title block ────────────────────────────────────────────────────
+        story.append(Paragraph("ETMS — Task Report", title_style))
+        story.append(Paragraph(
+            f"Generated: {_today_str()}  |  User: {user.get_full_name() or user.username}  |  Role: {user.role}",
+            sub_style,
+        ))
+        story.append(Spacer(1, 0.15*cm))
+        story.append(HRFlowable(width="100%", thickness=1.5, color=NAVY))
+        story.append(Spacer(1, 0.3*cm))
+
+        if not qs.exists():
+            story.append(Paragraph("No tasks found for the selected filters.", styles["Normal"]))
+        else:
+            # ── Table headers ──────────────────────────────────────────────
+            SHORT_HEADERS = [
+                "#", "Title", "Category", "Priority", "Status",
+                "Assigned To", "Assigned By", "Deadline", "Created",
+            ]
+            col_widths_pdf = [
+                1.0*cm, 6.5*cm, 3.0*cm, 2.2*cm, 2.5*cm,
+                4.0*cm, 4.0*cm, 2.8*cm, 2.8*cm,
+            ]
+
+            table_data = [[Paragraph(h, hdr_style) for h in SHORT_HEADERS]]
+
+            for task in qs:
+                row = _task_row(task)
+                priority_label = task.get_priority_display()
+                status_label   = task.get_status_display()
+
+                table_data.append([
+                    Paragraph(str(row[0]), cell_style),   # ID
+                    Paragraph(row[1][:60], cell_style),   # Title
+                    Paragraph(row[3], cell_style),        # Category
+                    Paragraph(priority_label, cell_style),
+                    Paragraph(status_label, cell_style),
+                    Paragraph(row[6][:30], cell_style),   # Assigned To
+                    Paragraph(row[7][:30], cell_style),   # Assigned By
+                    Paragraph(row[9], cell_style),        # Deadline
+                    Paragraph(row[11][:10], cell_style),  # Created At
+                ])
+
+            t = Table(table_data, colWidths=col_widths_pdf, repeatRows=1)
+
+            # Base style
+            ts = TableStyle([
+                # Header
+                ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
+                ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
+                ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE",      (0, 0), (-1, 0), 8),
+                ("ALIGN",         (0, 0), (-1, 0), "CENTER"),
+                # Body
+                ("FONTSIZE",      (0, 1), (-1, -1), 8),
+                ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING",    (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+                ("GRID",          (0, 0), (-1, -1), 0.4, MGRAY),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [WHITE, LGRAY]),
+            ])
+
+            # Per-row colour for Priority & Status columns (col 3 & 4)
+            for i, task in enumerate(qs, start=1):
+                p_color = priority_map.get(task.get_priority_display())
+                s_color = status_map.get(task.get_status_display())
+                if p_color:
+                    ts.add("BACKGROUND", (3, i), (3, i), p_color)
+                if s_color:
+                    ts.add("BACKGROUND", (4, i), (4, i), s_color)
+
+            t.setStyle(ts)
+            story.append(t)
+
+        # ── Footer note ────────────────────────────────────────────────────
+        story.append(Spacer(1, 0.4*cm))
+        story.append(HRFlowable(width="100%", thickness=0.6, color=MGRAY))
+        story.append(Spacer(1, 0.1*cm))
+        story.append(Paragraph(
+            f"Employee Task Management System  ·  {_today_str()}  ·  Confidential",
+            ParagraphStyle("footer", fontName="Helvetica-Oblique", fontSize=7,
+                           textColor=colors.HexColor("#888888"), alignment=TA_CENTER),
+        ))
+
+        doc.build(story)
+        buf.seek(0)
+
+        response = HttpResponse(buf.read(), content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="ETMS_Tasks_{_today_str()}.pdf"'
+        return response

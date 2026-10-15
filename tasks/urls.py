@@ -10,12 +10,16 @@ from .views import (
     TaskCommentListCreateView,
     TaskDetailView,
     TaskExportCSVView,
+    TaskExportExcelView,
+    TaskExportPDFView,
     TaskListCreateView,
 )
 
 urlpatterns = [
     path("", TaskListCreateView.as_view(), name="task-list-create"),
-    path("export/", TaskExportCSVView.as_view(), name="task-export-csv"),
+    path("export/csv/",   TaskExportCSVView.as_view(),   name="task-export-csv"),
+    path("export/excel/", TaskExportExcelView.as_view(), name="task-export-excel"),
+    path("export/pdf/",   TaskExportPDFView.as_view(),   name="task-export-pdf"),
     path("my-tasks/", MyTasksView.as_view(), name="task-my-tasks"),
     path("overdue/", OverdueTasksView.as_view(), name="task-overdue"),
     path("completed/", CompletedTasksView.as_view(), name="task-completed"),
