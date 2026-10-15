@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    AttachmentDeleteView,
     CompletedTasksView,
     MyTasksView,
     OverdueTasksView,
@@ -8,11 +9,13 @@ from .views import (
     TaskAttachmentListCreateView,
     TaskCommentListCreateView,
     TaskDetailView,
+    TaskExportCSVView,
     TaskListCreateView,
 )
 
 urlpatterns = [
     path("", TaskListCreateView.as_view(), name="task-list-create"),
+    path("export/", TaskExportCSVView.as_view(), name="task-export-csv"),
     path("my-tasks/", MyTasksView.as_view(), name="task-my-tasks"),
     path("overdue/", OverdueTasksView.as_view(), name="task-overdue"),
     path("completed/", CompletedTasksView.as_view(), name="task-completed"),
@@ -20,4 +23,4 @@ urlpatterns = [
     path("<int:pk>/", TaskDetailView.as_view(), name="task-detail"),
     path("<int:task_id>/comments/", TaskCommentListCreateView.as_view(), name="task-comments"),
     path("<int:task_id>/attachments/", TaskAttachmentListCreateView.as_view(), name="task-attachments"),
-]
+]

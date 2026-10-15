@@ -326,3 +326,80 @@ class AttachmentDeleteView(generics.DestroyAPIView):
         attachment.file.delete(save=False)  # remove the actual file from the media folder
         attachment.delete()                 # then remove the database row
         return success_response("Attachment deleted successfully", status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------
+# CSV Export
+# ---------------------------------------------------------------
+import csv
+from django.http import HttpResponse
+from rest_framework.views import APIView
+
+
+class TaskExportCSVView(APIView):
+    """GET /api/tasks/export/
+    Returns a CSV of all tasks visible to the current user.
+    Supports the same query params as TaskListCreateView:
+      ?status=PENDING&priority=HIGH&search=...
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = visible_tasks_for(request.user).select_related(
+            "assigned_to__user", "assigned_by"
+        )
+
+        # ── Apply optional filters ─────────────────────────────────────────
+        status_param   = request.query_params.get("status")
+        priority_param = request.query_params.get("priority")
+        search_param   = request.query_params.get("search")
+
+        if status_param and status_param.upper() in [c[0] for c in Task.Status.choices]:
+            qs = qs.filter(status=status_param.upper())
+
+        if priority_param and priority_param.upper() in [c[0] for c in Task.Priority.choices]:
+            qs = qs.filter(priority=priority_param.upper())
+
+        if search_param:
+            qs = qs.filter(title__icontains=search_param)
+
+        # ── Build CSV ──────────────────────────────────────────────────────
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="etms_tasks.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow([
+            "Task ID", "Title", "Description", "Category",
+            "Priority", "Status",
+            "Assigned To", "Assigned By",
+            "Start Date", "Deadline", "Completed At",
+            "Created At",
+        ])
+
+        for task in qs:
+            assigned_to_name = ""
+            if task.assigned_to:
+                assigned_to_name = task.assigned_to.full_name or getattr(
+                    task.assigned_to.user, "get_full_name", lambda: ""
+                )()
+
+            assigned_by_name = ""
+            if task.assigned_by:
+                assigned_by_name = task.assigned_by.get_full_name() or task.assigned_by.username
+
+            writer.writerow([
+                task.pk,
+                task.title,
+                task.description,
+                task.category,
+                task.get_priority_display(),
+                task.get_status_display(),
+                assigned_to_name,
+                assigned_by_name,
+                task.start_date or "",
+                task.deadline or "",
+                task.completed_at.strftime("%Y-%m-%d %H:%M") if task.completed_at else "",
+                task.created_at.strftime("%Y-%m-%d %H:%M"),
+            ])
+
+        return response
