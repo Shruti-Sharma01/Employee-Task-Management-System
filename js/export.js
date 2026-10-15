@@ -111,11 +111,11 @@ document.addEventListener('click', function () {
             top: calc(100% + 6px);
             right: 0;
             z-index: 999;
-            background: var(--color-card, #fff);
-            border: 1px solid var(--color-border, #ddd);
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
             border-radius: 8px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-            min-width: 170px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+            min-width: 175px;
             overflow: hidden;
         }
         .export-dropdown-menu button {
@@ -129,19 +129,39 @@ document.addEventListener('click', function () {
             text-align: left;
             font-size: 0.88rem;
             font-family: inherit;
-            color: var(--color-text, #333);
+            color: #1e293b;
             cursor: pointer;
-            transition: background 0.15s;
+            transition: background 0.15s, color 0.15s;
         }
-        .export-dropdown-menu button:hover { background: var(--color-bg-alt, #f5f5f5); }
-        .export-dropdown-menu .divider { height: 1px; background: var(--color-border, #eee); margin: 2px 0; }
+        .export-dropdown-menu button:hover { background: #f1f5f9; }
+        .export-dropdown-menu .divider { height: 1px; background: #e2e8f0; margin: 2px 0; }
         .export-dropdown-menu .menu-label {
             font-size: 0.72rem;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.06em;
-            color: var(--color-text-muted, #999);
+            color: #64748b;
             padding: 8px 16px 4px;
+        }
+
+        /* ── Dark theme overrides ── */
+        html.dark-theme .export-dropdown-menu {
+            background: #141F38 !important;
+            border-color: #233554 !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+        }
+        html.dark-theme .export-dropdown-menu button {
+            color: #F1F5F9 !important;
+        }
+        html.dark-theme .export-dropdown-menu button:hover {
+            background: #1E293B !important;
+            color: #388BFD !important;
+        }
+        html.dark-theme .export-dropdown-menu .menu-label {
+            color: #94A3B8 !important;
+        }
+        html.dark-theme .export-dropdown-menu .divider {
+            background: #233554 !important;
         }
     `;
     document.head.appendChild(s);

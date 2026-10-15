@@ -450,3 +450,33 @@ html.dark-theme .register-header p,
 html.dark-theme .forgot-header p {
     color: #94A3B8 !important;
 }
+
+/* ── Export Dropdown Menu in Dark Mode ─────────────────────── */
+.export-dropdown-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+html.dark-theme .export-dropdown-menu {
+    background: #141F38 !important;
+    border-color: #233554 !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+}
+
+html.dark-theme .export-dropdown-menu button {
+    color: #F1F5F9 !important;
+}
+
+html.dark-theme .export-dropdown-menu button:hover {
+    background: #1E293B !important;
+    color: #388BFD !important;
+}
+
+html.dark-theme .export-dropdown-menu .menu-label {
+    color: #94A3B8 !important;
+}
+
+html.dark-theme .export-dropdown-menu .divider {
+    background: #233554 !important;
+}
+
