@@ -414,6 +414,112 @@ class TaskActivityListView(generics.ListAPIView):
         return success_response("Task activities fetched successfully", response.data)
 
 
+class TaskReassignView(generics.GenericAPIView):
+    """
+    PATCH /api/tasks/<pk>/reassign/
+    Body: { "assigned_to": <employee_id (pk)>, "note": "<optional reason>" }
+    Only ADMIN and MANAGER can reassign tasks.
+    Manager can only reassign to their own team members.
+    """
+    permission_classes = [IsAdminOrManager]
+
+    def get_task(self):
+        return get_object_or_404(visible_tasks_for(self.request.user), pk=self.kwargs["pk"])
+
+    def patch(self, request, *args, **kwargs):
+        from employees.models import Employee
+
+        task = self.get_task()
+        user = request.user
+
+        new_assignee_id = request.data.get("assigned_to")
+        note = request.data.get("note", "").strip()
+
+        if not new_assignee_id:
+            from rest_framework.response import Response
+            return Response(
+                {"message": "assigned_to field is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Fetch new employee
+        try:
+            new_employee = Employee.objects.select_related("user").get(pk=new_assignee_id)
+        except Employee.DoesNotExist:
+            from rest_framework.response import Response
+            return Response(
+                {"message": "Employee not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not new_employee.is_active:
+            from rest_framework.response import Response
+            return Response(
+                {"message": "Cannot assign a task to an inactive employee."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Manager can only assign to their team members or themselves
+        if user.role == User.Role.MANAGER:
+            manager_profile = getattr(user, "employee_profile", None)
+            if manager_profile is None:
+                from rest_framework.response import Response
+                return Response(
+                    {"message": "Manager profile not found."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if (new_employee.manager_id != manager_profile.pk and
+                    new_employee.pk != manager_profile.pk):
+                from rest_framework.response import Response
+                return Response(
+                    {"message": "You can only reassign tasks to your own team members."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        old_employee = task.assigned_to
+        old_name = old_employee.full_name if old_employee else "Unassigned"
+        new_name = new_employee.full_name
+        actor_name = user.get_full_name() or user.username
+
+        # Save
+        task.assigned_to = new_employee
+        task.save(update_fields=["assigned_to", "updated_at"])
+
+        # Audit log
+        msg = f"{actor_name} reassigned task from {old_name} to {new_name}"
+        if note:
+            msg += f" — Reason: {note}"
+        log_task_activity(task, user, "REASSIGNED", msg)
+
+        # Notify the new assignee
+        try:
+            from notifications.models import Notification
+            if new_employee.user and new_employee.user != user:
+                Notification.objects.create(
+                    user=new_employee.user,
+                    title="Task Reassigned to You 🔄",
+                    message=(
+                        f'"{task.title}" has been reassigned to you by {actor_name}.'
+                        + (f" Note: {note}" if note else "")
+                    ),
+                    notification_type=Notification.NotificationType.TASK_ASSIGNED,
+                )
+            # Also notify old assignee (if different from actor and new assignee)
+            if (old_employee and old_employee.user and
+                    old_employee.user != user and old_employee != new_employee):
+                Notification.objects.create(
+                    user=old_employee.user,
+                    title="Task Reassigned",
+                    message=(
+                        f'"{task.title}" has been reassigned from you to {new_name} by {actor_name}.'
+                    ),
+                    notification_type=Notification.NotificationType.TASK_UPDATED,
+                )
+        except Exception:
+            pass
+
+        return success_response("Task reassigned successfully", TaskSerializer(task).data)
+
 
 # ---------------------------------------------------------------
 # Exports — CSV / Excel / PDF

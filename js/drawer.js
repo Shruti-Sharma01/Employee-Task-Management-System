@@ -69,6 +69,38 @@
                             <div class="drawer-meta-val" id="drawerDueDate">—</div>
                         </div>
                     </div>
+
+                    <!-- Reassign Panel (Manager / Admin only) -->
+                    <div class="drawer-reassign-panel" id="drawerReassignPanel" style="display:none;">
+                        <div class="drawer-reassign-header">
+                            <span>🔄 Reassign Task</span>
+                            <button type="button" class="drawer-reassign-toggle-btn" id="drawerReassignToggleBtn"
+                                    onclick="window._drawerToggleReassign()">
+                                Reassign
+                            </button>
+                        </div>
+                        <div class="drawer-reassign-form" id="drawerReassignForm" style="display:none;">
+                            <div class="drawer-reassign-field">
+                                <label class="drawer-reassign-label">Assign To</label>
+                                <select id="drawerReassignSelect" class="drawer-reassign-select">
+                                    <option value="">— Loading employees… —</option>
+                                </select>
+                            </div>
+                            <div class="drawer-reassign-field">
+                                <label class="drawer-reassign-label">Reason <span style="font-weight:400;opacity:0.6;">(optional)</span></label>
+                                <input type="text" id="drawerReassignNote" class="drawer-reassign-input"
+                                       placeholder="e.g. Employee on leave, workload balancing…" maxlength="200">
+                            </div>
+                            <div class="drawer-reassign-actions">
+                                <button type="button" class="drawer-reassign-cancel-btn"
+                                        onclick="window._drawerToggleReassign()">Cancel</button>
+                                <button type="button" class="drawer-reassign-submit-btn" id="drawerReassignSubmitBtn"
+                                        onclick="window._drawerSubmitReassign()">
+                                    ✅ Confirm Reassign
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Section: Attachments -->
@@ -300,6 +332,7 @@
         const assignedByEl = document.getElementById('drawerAssignedBy');
         const categoryEl = document.getElementById('drawerCategory');
         const dueDateEl = document.getElementById('drawerDueDate');
+        const reassignPanel = document.getElementById('drawerReassignPanel');
 
         if (titleEl) titleEl.textContent = task.title || 'Untitled Task';
         if (descEl) descEl.textContent = task.description || 'No description provided.';
@@ -337,6 +370,19 @@
             dueDateEl.innerHTML = dueDate 
                 ? `📅 ${escapeHtml(dueDate)} ${isOverdue ? '<span style="color:#ef4444;font-size:0.75rem;">(Overdue)</span>' : ''}`
                 : 'No due date';
+        }
+
+        // Show Reassign panel for Manager or Admin only
+        if (reassignPanel) {
+            const currentUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+            const role = (currentUser?.role || '').toUpperCase();
+            if (role === 'ADMIN' || role === 'MANAGER') {
+                reassignPanel.style.display = 'block';
+                // Pre-load employees list in background
+                _drawerLoadEmployees();
+            } else {
+                reassignPanel.style.display = 'none';
+            }
         }
     }
 
@@ -902,5 +948,117 @@
     } else {
         injectDrawerHTML();
     }
+
+    // ── Reassign Task ─────────────────────────────────────────────────────────
+
+    // Cache employees list so we don't fetch on every open
+    let _employeesCache = null;
+
+    // Toggle the reassign form open/closed
+    window._drawerToggleReassign = function () {
+        const form = document.getElementById('drawerReassignForm');
+        const btn  = document.getElementById('drawerReassignToggleBtn');
+        if (!form) return;
+        const isOpen = form.style.display !== 'none';
+        form.style.display = isOpen ? 'none' : 'block';
+        if (btn) btn.textContent = isOpen ? 'Reassign' : '✕ Close';
+
+        // Populate select when opening
+        if (!isOpen) {
+            _drawerLoadEmployees();
+            const note = document.getElementById('drawerReassignNote');
+            if (note) note.value = '';
+        }
+    };
+
+    // Load employees into the select dropdown
+    async function _drawerLoadEmployees() {
+        const select = document.getElementById('drawerReassignSelect');
+        if (!select) return;
+
+        // Use cache if available
+        if (_employeesCache) {
+            _populateReassignSelect(select, _employeesCache);
+            return;
+        }
+
+        select.innerHTML = '<option value="">— Loading… —</option>';
+
+        try {
+            const res = await apiRequest('/employees/?page_size=200');
+            if (!res.ok) {
+                select.innerHTML = '<option value="">— Could not load employees —</option>';
+                return;
+            }
+            const payload = res.data?.data || res.data || {};
+            const employees = Array.isArray(payload.results) ? payload.results
+                            : Array.isArray(payload) ? payload : [];
+            _employeesCache = employees;
+            _populateReassignSelect(select, employees);
+        } catch (err) {
+            select.innerHTML = '<option value="">— Error loading employees —</option>';
+        }
+    }
+
+    function _populateReassignSelect(select, employees) {
+        if (!employees || employees.length === 0) {
+            select.innerHTML = '<option value="">— No employees found —</option>';
+            return;
+        }
+        select.innerHTML = '<option value="">— Select employee —</option>' +
+            employees.map(e =>
+                `<option value="${e.id}">${escapeHtml(e.full_name || e.employee_id)} (${escapeHtml(e.department || '')})</option>`
+            ).join('');
+    }
+
+    // Submit the reassign
+    window._drawerSubmitReassign = async function () {
+        const select  = document.getElementById('drawerReassignSelect');
+        const note    = document.getElementById('drawerReassignNote');
+        const submitBtn = document.getElementById('drawerReassignSubmitBtn');
+        const newEmployeeId = select ? select.value : '';
+
+        if (!newEmployeeId) {
+            alert('Please select an employee to reassign the task to.');
+            return;
+        }
+        if (!currentDrawerTaskId) return;
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Reassigning…';
+        }
+
+        try {
+            const body = { assigned_to: parseInt(newEmployeeId, 10) };
+            const noteVal = note ? note.value.trim() : '';
+            if (noteVal) body.note = noteVal;
+
+            const res = await apiRequest(`/tasks/${currentDrawerTaskId}/reassign/`, {
+                method: 'PATCH',
+                body: JSON.stringify(body),
+            });
+
+            if (res.ok) {
+                // Close form & refresh drawer
+                window._drawerToggleReassign();
+                _employeesCache = null; // clear cache so it refreshes next time
+                await loadTaskData(currentDrawerTaskId);
+                await loadActivities(currentDrawerTaskId);
+                // Refresh task list in background if function exists
+                if (typeof loadTasks === 'function') loadTasks();
+            } else {
+                const msg = res.data?.message || res.data?.detail || 'Reassignment failed. Please try again.';
+                alert('Error: ' + msg);
+            }
+        } catch (err) {
+            alert('Network error: ' + (err.message || err));
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '✅ Confirm Reassign';
+            }
+        }
+    };
 
 })();

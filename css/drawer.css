@@ -1158,3 +1158,190 @@
     font-size: 0.85rem;
 }
 
+/* ── Reassign Task Panel ─────────────────────────────────────── */
+.drawer-reassign-panel {
+    margin-top: 16px;
+    border: 1.5px solid var(--color-border, #e2e8f0);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--color-bg, #f8fafc);
+}
+
+.drawer-reassign-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text, #0e1726);
+    background: var(--color-surface, #ffffff);
+    border-bottom: 1px solid transparent;
+}
+
+.drawer-reassign-toggle-btn {
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1.5px solid var(--color-primary, #0038DE);
+    background: transparent;
+    color: var(--color-primary, #0038DE);
+    cursor: pointer;
+    transition: all 0.18s;
+}
+
+.drawer-reassign-toggle-btn:hover {
+    background: var(--color-primary, #0038DE);
+    color: #ffffff;
+}
+
+.drawer-reassign-form {
+    padding: 14px;
+    background: var(--color-surface, #ffffff);
+    border-top: 1.5px solid var(--color-border, #e2e8f0);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.drawer-reassign-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.drawer-reassign-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-text-muted, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.drawer-reassign-select,
+.drawer-reassign-input {
+    width: 100%;
+    padding: 8px 11px;
+    border: 1.5px solid var(--color-border, #e2e8f0);
+    border-radius: 7px;
+    font-size: 0.88rem;
+    font-family: inherit;
+    color: var(--color-text, #0e1726);
+    background: var(--color-bg, #f8fafc);
+    transition: border-color 0.18s;
+    box-sizing: border-box;
+}
+
+.drawer-reassign-select:focus,
+.drawer-reassign-input:focus {
+    outline: none;
+    border-color: var(--color-primary, #0038DE);
+    box-shadow: 0 0 0 3px rgba(0, 56, 222, 0.10);
+}
+
+.drawer-reassign-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding-top: 4px;
+}
+
+.drawer-reassign-cancel-btn {
+    padding: 7px 14px;
+    border-radius: 7px;
+    border: 1.5px solid var(--color-border, #e2e8f0);
+    background: transparent;
+    font-size: 0.83rem;
+    font-weight: 500;
+    color: var(--color-text-muted, #64748b);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.drawer-reassign-cancel-btn:hover {
+    background: var(--color-bg, #f1f5f9);
+    border-color: #cbd5e1;
+}
+
+.drawer-reassign-submit-btn {
+    padding: 7px 16px;
+    border-radius: 7px;
+    border: none;
+    background: var(--color-primary, #0038DE);
+    color: #ffffff;
+    font-size: 0.83rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s;
+}
+
+.drawer-reassign-submit-btn:hover:not(:disabled) {
+    background: var(--color-primary-dark, #08129C);
+}
+
+.drawer-reassign-submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ── Dark Mode ───────────────────────────────────── */
+html.dark-theme .drawer-reassign-panel {
+    background: #0e172e;
+    border-color: #233554;
+}
+
+html.dark-theme .drawer-reassign-header {
+    background: #141F38;
+    color: #F1F5F9;
+}
+
+html.dark-theme .drawer-reassign-toggle-btn {
+    border-color: #388BFD;
+    color: #388BFD;
+}
+
+html.dark-theme .drawer-reassign-toggle-btn:hover {
+    background: #388BFD;
+    color: #ffffff;
+}
+
+html.dark-theme .drawer-reassign-form {
+    background: #141F38;
+    border-top-color: #233554;
+}
+
+html.dark-theme .drawer-reassign-label {
+    color: #94A3B8;
+}
+
+html.dark-theme .drawer-reassign-select,
+html.dark-theme .drawer-reassign-input {
+    background: #0B1329;
+    border-color: #233554;
+    color: #F1F5F9;
+}
+
+html.dark-theme .drawer-reassign-select:focus,
+html.dark-theme .drawer-reassign-input:focus {
+    border-color: #388BFD;
+    box-shadow: 0 0 0 3px rgba(56, 139, 253, 0.18);
+}
+
+html.dark-theme .drawer-reassign-cancel-btn {
+    border-color: #233554;
+    color: #94A3B8;
+}
+
+html.dark-theme .drawer-reassign-cancel-btn:hover {
+    background: #1e293b;
+    border-color: #388BFD;
+}
+
+html.dark-theme .drawer-reassign-submit-btn {
+    background: #388BFD;
+}
+
+html.dark-theme .drawer-reassign-submit-btn:hover:not(:disabled) {
+    background: #1F6FEB;
+}

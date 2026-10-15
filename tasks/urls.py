@@ -14,6 +14,7 @@ from .views import (
     TaskExportExcelView,
     TaskExportPDFView,
     TaskListCreateView,
+    TaskReassignView,
 )
 
 urlpatterns = [
@@ -26,6 +27,7 @@ urlpatterns = [
     path("completed/", CompletedTasksView.as_view(), name="task-completed"),
     path("pending/", PendingTasksView.as_view(), name="task-pending"),
     path("<int:pk>/", TaskDetailView.as_view(), name="task-detail"),
+    path("<int:pk>/reassign/", TaskReassignView.as_view(), name="task-reassign"),
     path("<int:task_id>/comments/", TaskCommentListCreateView.as_view(), name="task-comments"),
     path("<int:task_id>/attachments/", TaskAttachmentListCreateView.as_view(), name="task-attachments"),
     path("<int:task_id>/activities/", TaskActivityListView.as_view(), name="task-activities"),
