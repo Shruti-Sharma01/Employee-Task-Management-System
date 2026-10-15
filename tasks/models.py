@@ -228,3 +228,37 @@ class TaskAttachment(models.Model):
 
     def __str__(self):
         return self.file_name or self.file.name
+
+
+class TaskActivity(models.Model):
+    """Audit log entry capturing status changes, reassignments, deadline changes, etc."""
+
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="activities",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="task_activities",
+    )
+    action = models.CharField(
+        max_length=50,
+        default="UPDATED",
+    )
+    message = models.TextField()
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["task", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"Activity on Task #{self.task_id}: {self.message[:50]}"

@@ -3,7 +3,7 @@ from rest_framework import serializers
 from accounts.models import User
 from employees.models import Employee
 
-from .models import Task, TaskAttachment, TaskComment
+from .models import Task, TaskActivity, TaskAttachment, TaskComment
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -147,3 +147,24 @@ class TaskAttachmentSerializer(serializers.ModelSerializer):
     def get_uploaded_by(self, obj):
         u = obj.uploaded_by
         return {"id": u.id, "username": u.username, "role": u.role} if u else None
+
+
+class TaskActivitySerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaskActivity
+        fields = ["id", "task", "user", "action", "message", "created_at"]
+        read_only_fields = ["id", "task", "user", "action", "message", "created_at"]
+
+    def get_user(self, obj):
+        u = obj.user
+        if not u:
+            return None
+        full_name = f"{u.first_name} {u.last_name}".strip() or u.username
+        return {
+            "id": u.id,
+            "username": u.username,
+            "full_name": full_name,
+            "role": u.role,
+        }

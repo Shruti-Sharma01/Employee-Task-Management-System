@@ -13,17 +13,29 @@ from accounts.permissions import IsAdmin, IsAdminOrManager
 from etms.responses import success_response
 
 from .filters import TaskFilter
-from .models import Task
-from .serializers import TaskSerializer, TaskStatusSerializer, TaskWriteSerializer
-
-from .models import Task, TaskAttachment, TaskComment
+from .models import Task, TaskActivity, TaskAttachment, TaskComment
 from .serializers import (
+    TaskActivitySerializer,
     TaskAttachmentSerializer,
     TaskCommentSerializer,
     TaskSerializer,
     TaskStatusSerializer,
     TaskWriteSerializer,
 )
+
+
+def log_task_activity(task, user, action, message):
+    """Create an audit log record for a task action."""
+    try:
+        TaskActivity.objects.create(
+            task=task,
+            user=user if getattr(user, "is_authenticated", False) else None,
+            action=action,
+            message=message,
+        )
+    except Exception:
+        pass
+
 
 def visible_tasks_for(user):
     """The single place that decides which tasks a user is allowed to see."""
@@ -73,6 +85,13 @@ class TaskListCreateView(BaseTaskListView):
         serializer = TaskWriteSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         task = serializer.save(assigned_by=request.user)  # who created it is set to request.user
+
+        # Audit log: task created
+        actor_name = request.user.get_full_name() or request.user.username
+        log_task_activity(task, request.user, "CREATED", f"Task created by {actor_name}")
+        if task.assigned_to:
+            assignee_name = task.assigned_to.full_name or "employee"
+            log_task_activity(task, request.user, "ASSIGNED", f"Assigned to {assignee_name}")
 
         # Auto-create notification for assigned employee (only if assigned to someone else)
         try:
@@ -158,8 +177,45 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
             )
 
         serializer.is_valid(raise_exception=True)
-        old_status = task.status  # capture before save
+
+        # Capture old values before save
+        old_status = task.status
+        old_priority = task.priority
+        old_assigned_to = task.assigned_to
+        old_deadline = task.deadline
+        old_title = task.title
+
         task = serializer.save()
+
+        # Log activity trail
+        actor_name = request.user.get_full_name() or request.user.username
+        if old_status != task.status:
+            log_task_activity(
+                task, request.user, "STATUS_CHANGED",
+                f"{actor_name} moved task to {task.get_status_display()}"
+            )
+        if old_assigned_to != task.assigned_to:
+            new_name = task.assigned_to.full_name if task.assigned_to else "Unassigned"
+            log_task_activity(
+                task, request.user, "REASSIGNED",
+                f"{actor_name} reassigned task to {new_name}"
+            )
+        if old_deadline != task.deadline:
+            log_task_activity(
+                task, request.user, "DEADLINE_CHANGED",
+                f"{actor_name} changed deadline to {task.deadline or 'None'}"
+            )
+        if old_priority != task.priority:
+            log_task_activity(
+                task, request.user, "PRIORITY_CHANGED",
+                f"{actor_name} changed priority to {task.get_priority_display()}"
+            )
+        if old_title != task.title:
+            log_task_activity(
+                task, request.user, "TITLE_CHANGED",
+                f"{actor_name} updated task title to \"{task.title}\""
+            )
+
 
         # Auto-create notifications after update
         try:
@@ -223,6 +279,11 @@ class TaskCommentListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         comment = serializer.save(task=task, user=request.user)
+
+        # Audit log for comment
+        actor_name = request.user.get_full_name() or request.user.username
+        comment_snippet = comment.comment[:50] + ("..." if len(comment.comment) > 50 else "")
+        log_task_activity(task, request.user, "COMMENT", f"{actor_name} commented: \"{comment_snippet}\"")
 
         # Notify the other party about the new comment
         try:
@@ -306,6 +367,11 @@ class TaskAttachmentListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)  # runs the type + size validator
         original_name = os.path.basename(serializer.validated_data["file"].name)
         attachment = serializer.save(task=task, uploaded_by=request.user, file_name=original_name[:255])
+
+        # Audit log for attachment
+        actor_name = request.user.get_full_name() or request.user.username
+        log_task_activity(task, request.user, "ATTACHMENT", f"{actor_name} attached file: {original_name}")
+
         return success_response(
             "Attachment uploaded successfully",
             self.get_serializer(attachment).data,
@@ -326,6 +392,27 @@ class AttachmentDeleteView(generics.DestroyAPIView):
         attachment.file.delete(save=False)  # remove the actual file from the media folder
         attachment.delete()                 # then remove the database row
         return success_response("Attachment deleted successfully", status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------
+# Activities / Audit Trail
+# ---------------------------------------------------------------
+class TaskActivityListView(generics.ListAPIView):
+    """GET /api/tasks/<task_id>/activities/"""
+
+    serializer_class = TaskActivitySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_task(self):
+        return get_object_or_404(visible_tasks_for(self.request.user), pk=self.kwargs["task_id"])
+
+    def get_queryset(self):
+        return TaskActivity.objects.filter(task=self.get_task()).select_related("user")
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        return success_response("Task activities fetched successfully", response.data)
+
 
 
 # ---------------------------------------------------------------

@@ -1004,3 +1004,157 @@
 .preview-fallback-wrap.dark-text {
     color: #0f172a;
 }
+
+/* ── Tabs (Comments vs Activity) ─────────────────────────── */
+.drawer-tabs-nav {
+    display: flex;
+    gap: 8px;
+    border-bottom: 2px solid var(--color-border, #e2e8f0);
+    margin-bottom: 16px;
+    padding-bottom: 2px;
+}
+
+.drawer-tab-btn {
+    background: none;
+    border: none;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--color-text-muted, #64748b);
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    position: relative;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: inherit;
+}
+
+.drawer-tab-btn:hover {
+    color: var(--color-primary, #0038de);
+    background: rgba(0, 56, 222, 0.05);
+}
+
+.drawer-tab-btn.active {
+    color: var(--color-primary, #0038de);
+    border-bottom: 2px solid var(--color-primary, #0038de);
+    margin-bottom: -2px;
+}
+
+.drawer-tab-btn span {
+    font-size: 0.75rem;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+    color: inherit;
+}
+
+.dark-theme .drawer-tab-btn span {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Activity Timeline ───────────────────────────────────── */
+.activity-timeline {
+    position: relative;
+    padding-left: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.activity-timeline::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 11px;
+    width: 2px;
+    background: var(--color-border, #e2e8f0);
+}
+
+.dark-theme .activity-timeline::before {
+    background: #334155;
+}
+
+.activity-timeline-item {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.activity-timeline-marker {
+    position: absolute;
+    left: -28px;
+    top: 4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    z-index: 1;
+}
+
+.dark-theme .activity-timeline-marker {
+    border-color: #1e293b;
+}
+
+.activity-type-created { background: #ede9fe; color: #7c3aed; }
+.activity-type-status { background: #dcfce7; color: #16a34a; }
+.activity-type-assign { background: #dbeafe; color: #2563eb; }
+.activity-type-deadline { background: #fef3c7; color: #d97706; }
+.activity-type-priority { background: #ffe4e6; color: #e11d48; }
+.activity-type-comment { background: #e0f2fe; color: #0284c7; }
+.activity-type-attachment { background: #fae8ff; color: #c026d3; }
+.activity-type-edit { background: #f1f5f9; color: #475569; }
+
+.dark-theme .activity-type-created { background: #3b0764; }
+.dark-theme .activity-type-status { background: #052e16; }
+.dark-theme .activity-type-assign { background: #172554; }
+.dark-theme .activity-type-deadline { background: #451a03; }
+.dark-theme .activity-type-priority { background: #4c0519; }
+.dark-theme .activity-type-comment { background: #082f49; }
+.dark-theme .activity-type-attachment { background: #3b0764; }
+.dark-theme .activity-type-edit { background: #1e293b; }
+
+.activity-timeline-body {
+    background: #f8fafc;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 8px;
+    padding: 9px 13px;
+    flex: 1;
+}
+
+.dark-theme .activity-timeline-body {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+.activity-timeline-text {
+    font-size: 0.84rem;
+    color: var(--color-text, #0e1726);
+    line-height: 1.45;
+}
+
+.dark-theme .activity-timeline-text {
+    color: #f1f5f9;
+}
+
+.activity-timeline-time {
+    font-size: 0.72rem;
+    color: var(--color-text-muted, #64748b);
+    margin-top: 4px;
+}
+
+.drawer-activity-empty {
+    text-align: center;
+    padding: 36px 16px;
+    color: var(--color-text-muted, #64748b);
+    font-size: 0.85rem;
+}
+

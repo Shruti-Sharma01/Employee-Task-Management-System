@@ -88,13 +88,29 @@
                     </div>
                 </div>
 
-                <!-- Section: Comments & Discussion -->
-                <div class="drawer-section drawer-comments-wrap">
-                    <div class="drawer-section-title">
-                        <span>💬 Discussion (<span id="drawerCommentCount">0</span>)</span>
+                <!-- Section: Tabs (Discussion & Activity) -->
+                <div class="drawer-section drawer-feed-wrap">
+                    <div class="drawer-tabs-nav">
+                        <button type="button" class="drawer-tab-btn active" id="drawerTabComments">
+                            💬 Discussion (<span id="drawerCommentCount">0</span>)
+                        </button>
+                        <button type="button" class="drawer-tab-btn" id="drawerTabActivities">
+                            📜 Activity (<span id="drawerActivityCount">0</span>)
+                        </button>
                     </div>
-                    <div class="drawer-comments-list" id="drawerCommentsList">
-                        <div class="drawer-comment-empty">Loading discussion…</div>
+
+                    <!-- Pane 1: Comments -->
+                    <div class="drawer-tab-pane active" id="paneComments">
+                        <div class="drawer-comments-list" id="drawerCommentsList">
+                            <div class="drawer-comment-empty">Loading discussion…</div>
+                        </div>
+                    </div>
+
+                    <!-- Pane 2: Activities -->
+                    <div class="drawer-tab-pane" id="paneActivities" style="display:none;">
+                        <div class="drawer-activities-list" id="drawerActivitiesList">
+                            <div class="drawer-activity-empty">Loading activity history…</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -163,6 +179,41 @@
                 }
             });
         }
+
+        // Tab Switching (Comments vs Activity)
+        const tabComments = document.getElementById('drawerTabComments');
+        const tabActivities = document.getElementById('drawerTabActivities');
+        if (tabComments) {
+            tabComments.addEventListener('click', () => switchDrawerTab('comments'));
+        }
+        if (tabActivities) {
+            tabActivities.addEventListener('click', () => switchDrawerTab('activities'));
+        }
+    }
+
+    // ── Tab Switcher ─────────────────────────────────────────────
+    function switchDrawerTab(tabName) {
+        const tabComments = document.getElementById('drawerTabComments');
+        const tabActivities = document.getElementById('drawerTabActivities');
+        const paneComments = document.getElementById('paneComments');
+        const paneActivities = document.getElementById('paneActivities');
+        const footer = document.querySelector('.drawer-footer');
+
+        if (tabName === 'activities') {
+            if (tabComments) tabComments.classList.remove('active');
+            if (tabActivities) tabActivities.classList.add('active');
+            if (paneComments) paneComments.style.display = 'none';
+            if (paneActivities) paneActivities.style.display = 'block';
+            if (footer) footer.style.display = 'none';
+            if (currentDrawerTaskId) loadActivities(currentDrawerTaskId);
+        } else {
+            if (tabActivities) tabActivities.classList.remove('active');
+            if (tabComments) tabComments.classList.add('active');
+            if (paneActivities) paneActivities.style.display = 'none';
+            if (paneComments) paneComments.style.display = 'block';
+            if (footer) footer.style.display = '';
+            if (currentDrawerTaskId) loadComments(currentDrawerTaskId);
+        }
     }
 
     // ── Open Drawer ──────────────────────────────────────────────
@@ -172,6 +223,9 @@
 
         currentDrawerTaskId = taskId;
         isDrawerOpen = true;
+
+        // Reset to Comments tab on open
+        switchDrawerTab('comments');
 
         const overlay = document.getElementById('drawerOverlay');
         const drawer = document.getElementById('taskDrawer');
@@ -186,6 +240,7 @@
         await loadTaskData(taskId);
         loadComments(taskId);
         loadAttachments(taskId);
+        loadActivities(taskId);
     };
 
     // ── Close Drawer ─────────────────────────────────────────────
@@ -356,6 +411,91 @@
         }
     }
 
+    // ── Load Activities ──────────────────────────────────────────
+    async function loadActivities(taskId) {
+        const listEl = document.getElementById('drawerActivitiesList');
+        const countEl = document.getElementById('drawerActivityCount');
+        if (!listEl) return;
+
+        try {
+            const res = await apiRequest(`/tasks/${taskId}/activities/`);
+            if (!res.ok) {
+                listEl.innerHTML = `<div class="drawer-activity-empty">Could not load activity history.</div>`;
+                return;
+            }
+
+            const payload = res.data?.data || res.data || {};
+            const activities = Array.isArray(payload.results) ? payload.results
+                              : Array.isArray(payload) ? payload : [];
+
+            if (countEl) countEl.textContent = activities.length;
+
+            if (activities.length === 0) {
+                listEl.innerHTML = `
+                    <div class="drawer-activity-empty">
+                        <div style="font-size:2rem;margin-bottom:8px;">📜</div>
+                        <div>No activity recorded yet for this task.</div>
+                    </div>`;
+                return;
+            }
+
+            listEl.innerHTML = `<div class="activity-timeline">` +
+                activities.map(act => renderActivityItem(act)).join('') +
+                `</div>`;
+        } catch (err) {
+            console.warn('[Drawer] Error loading activities:', err);
+            listEl.innerHTML = `<div class="drawer-activity-empty">Error loading activity history.</div>`;
+        }
+    }
+
+    function renderActivityItem(act) {
+        const action = act.action || 'UPDATED';
+        let icon = '✏️';
+        let badgeClass = 'activity-type-edit';
+
+        if (action === 'CREATED') {
+            icon = '✨';
+            badgeClass = 'activity-type-created';
+        } else if (action === 'STATUS_CHANGED') {
+            icon = '🔄';
+            badgeClass = 'activity-type-status';
+        } else if (action === 'REASSIGNED' || action === 'ASSIGNED') {
+            icon = '👤';
+            badgeClass = 'activity-type-assign';
+        } else if (action === 'DEADLINE_CHANGED') {
+            icon = '📅';
+            badgeClass = 'activity-type-deadline';
+        } else if (action === 'PRIORITY_CHANGED') {
+            icon = '⚡';
+            badgeClass = 'activity-type-priority';
+        } else if (action === 'COMMENT' || action === 'COMMENT_ADDED') {
+            icon = '💬';
+            badgeClass = 'activity-type-comment';
+        } else if (action === 'ATTACHMENT' || action === 'ATTACHMENT_ADDED') {
+            icon = '📎';
+            badgeClass = 'activity-type-attachment';
+        }
+
+        const timeAgo = formatTimeAgo(act.created_at);
+        const fullDate = act.created_at ? new Date(act.created_at).toLocaleString() : '';
+
+        return `
+            <div class="activity-timeline-item">
+                <div class="activity-timeline-marker ${badgeClass}">
+                    <span>${icon}</span>
+                </div>
+                <div class="activity-timeline-body">
+                    <div class="activity-timeline-text">
+                        ${escapeHtml(act.message || 'Updated task')}
+                    </div>
+                    <div class="activity-timeline-time" title="${fullDate}">
+                        ${timeAgo}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     // ── Submit New Comment ───────────────────────────────────────
     async function handleCommentSubmit() {
         if (!currentDrawerTaskId) return;
@@ -380,6 +520,7 @@
             if (res.ok) {
                 if (input) input.value = '';
                 await loadComments(currentDrawerTaskId);
+                loadActivities(currentDrawerTaskId);
             } else {
                 alert('Could not post comment: ' + (res.data?.message || 'Please try again.'));
             }
@@ -684,6 +825,7 @@
 
             if (res.ok) {
                 await loadAttachments(currentDrawerTaskId);
+                loadActivities(currentDrawerTaskId);
             } else {
                 alert('File upload failed: ' + (data?.message || 'Unsupported file type or server error.'));
             }
@@ -703,15 +845,19 @@
 
             if (res.ok || res.status === 204) {
                 await loadAttachments(taskId);
+                loadActivities(taskId);
             } else {
                 alert('Could not delete attachment: ' + (res.data?.message || 'Permission denied.'));
             }
         } catch (err) {
             alert('Error deleting attachment: ' + (err.message || err));
         }
+    };
+
     window._drawerReloadAttachments = function (taskId) {
         if (currentDrawerTaskId && String(currentDrawerTaskId) === String(taskId)) {
             loadAttachments(taskId);
+            loadActivities(taskId);
         }
     };
 

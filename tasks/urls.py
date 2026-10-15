@@ -6,6 +6,7 @@ from .views import (
     MyTasksView,
     OverdueTasksView,
     PendingTasksView,
+    TaskActivityListView,
     TaskAttachmentListCreateView,
     TaskCommentListCreateView,
     TaskDetailView,
@@ -27,4 +28,5 @@ urlpatterns = [
     path("<int:pk>/", TaskDetailView.as_view(), name="task-detail"),
     path("<int:task_id>/comments/", TaskCommentListCreateView.as_view(), name="task-comments"),
     path("<int:task_id>/attachments/", TaskAttachmentListCreateView.as_view(), name="task-attachments"),
+    path("<int:task_id>/activities/", TaskActivityListView.as_view(), name="task-activities"),
 ]
