@@ -480,3 +480,37 @@ html.dark-theme .export-dropdown-menu .divider {
     background: #233554 !important;
 }
 
+/* ── Navbar User Greeting & Bell Icon ─────────────────────── */
+/* Navbar is always dark blue (#08129C) in both light & dark mode,
+   so these must always be white/light — regardless of theme. */
+.nav-user-greet {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.82) !important;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.notif-bell-btn {
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+
+.notif-bell-btn:hover {
+    background: rgba(255, 255, 255, 0.12) !important;
+    color: #ffffff !important;
+}
+
+/* Dark mode: navbar is even darker, keep same white tones */
+html.dark-theme .nav-user-greet {
+    color: rgba(255, 255, 255, 0.80) !important;
+}
+
+html.dark-theme .notif-bell-btn {
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+
+html.dark-theme .notif-bell-btn:hover {
+    background: rgba(255, 255, 255, 0.10) !important;
+    color: #ffffff !important;
+}
+
+

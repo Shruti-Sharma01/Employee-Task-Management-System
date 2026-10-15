@@ -94,9 +94,9 @@
             greet.id        = 'navUserGreet';
             greet.className = 'nav-user-greet';
             greet.style.cssText = `
-                font-size:0.8rem; color:var(--color-text-muted);
-                padding:0 4px; white-space:nowrap; display:flex;
-                align-items:center;
+                font-size:0.82rem; color:rgba(255,255,255,0.82);
+                padding:0 6px; white-space:nowrap; display:flex;
+                align-items:center; font-weight:500; letter-spacing:0.01em;
             `;
             greet.textContent = `Hi, ${name.split(' ')[0]} 👋`;
             nav.insertBefore(greet, nav.firstChild);

@@ -22,13 +22,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-text-muted, #777);
+    color: rgba(255, 255, 255, 0.82);
     transition: background 0.15s ease, color 0.15s ease;
 }
 
 .notif-bell-btn:hover {
-    background: rgba(74, 111, 165, 0.10);
-    color: var(--color-primary, #4A6FA5);
+    background: rgba(255, 255, 255, 0.12);
+    color: #FFFFFF;
 }
 
 .bell-icon {
