@@ -1345,3 +1345,75 @@ html.dark-theme .drawer-reassign-submit-btn {
 html.dark-theme .drawer-reassign-submit-btn:hover:not(:disabled) {
     background: #1F6FEB;
 }
+
+/* ── Drawer Quick Action Buttons (Accept / Complete) ────────── */
+.drawer-action-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.btn-drawer-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.btn-drawer-accept {
+    background: #0038DE;
+    color: #ffffff;
+}
+
+.btn-drawer-accept:hover:not(:disabled) {
+    background: #08129C;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 56, 222, 0.25);
+}
+
+.btn-drawer-complete {
+    background: #16A34A;
+    color: #ffffff;
+}
+
+.btn-drawer-complete:hover:not(:disabled) {
+    background: #15803D;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+}
+
+.btn-drawer-action:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+}
+
+html.dark-theme .btn-drawer-accept {
+    background: #388BFD;
+    color: #ffffff;
+}
+
+html.dark-theme .btn-drawer-accept:hover:not(:disabled) {
+    background: #1F6FEB;
+    box-shadow: 0 4px 12px rgba(56, 139, 253, 0.35);
+}
+
+html.dark-theme .btn-drawer-complete {
+    background: #22C55E;
+    color: #070D1E;
+}
+
+html.dark-theme .btn-drawer-complete:hover:not(:disabled) {
+    background: #16A34A;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+}

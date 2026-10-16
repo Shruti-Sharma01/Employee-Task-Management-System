@@ -633,7 +633,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${escapeHtml(task.dueDate || '-')}</td>
                 <td>${getStatusBadge(task.status)}</td>
                 <td>
-                    <div style="display:flex;gap:6px;align-items:center;">
+                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                        ${(task.status || '').toLowerCase() === 'pending' ? `
+                        <button type="button" class="btn btn-primary" style="padding:4px 9px;font-size:0.75rem;background:#0038DE;color:#fff;"
+                            onclick="window.quickAcceptTask('${escapeHtml(task.id)}')" title="Accept task and move to In Progress">🚀 Accept</button>
+                        ` : ''}
+                        ${(task.status || '').toLowerCase() === 'in-progress' ? `
+                        <button type="button" class="btn btn-success" style="padding:4px 9px;font-size:0.75rem;background:#16A34A;color:#fff;"
+                            onclick="window.quickCompleteTask('${escapeHtml(task.id)}')" title="Mark as Completed">✅ Complete</button>
+                        ` : ''}
                         <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
                             onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion & Attachments">💬 Notes</button>
                         <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
@@ -702,6 +710,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span title="Due Date">📅 ${escapeHtml(task.dueDate || 'No due date')}</span>
                 </div>
                 <div class="kanban-card-actions">
+                    ${(task.status || '').toLowerCase() === 'pending' ? `
+                    <button type="button" class="btn btn-primary" style="font-size:0.75rem;padding:3px 8px;background:#0038DE;color:#fff;"
+                        onclick="window.quickAcceptTask('${escapeHtml(task.id)}')" title="Accept task and move to In Progress">🚀 Accept</button>
+                    ` : ''}
+                    ${(task.status || '').toLowerCase() === 'in-progress' ? `
+                    <button type="button" class="btn btn-success" style="font-size:0.75rem;padding:3px 8px;background:#16A34A;color:#fff;"
+                        onclick="window.quickCompleteTask('${escapeHtml(task.id)}')" title="Mark as Completed">✅ Complete</button>
+                    ` : ''}
                     <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
                         onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion & Attachments">💬 Notes</button>
                     <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
@@ -841,7 +857,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 13. Initial Load
+    // 13. Quick Action Handlers (Automated status transitions)
+    // ─────────────────────────────────────────────────────────────────────────
+    window.quickAcceptTask = async function(taskId) {
+        try {
+            if (typeof acceptTask === 'function') {
+                await acceptTask(taskId);
+            } else {
+                await apiRequest(`/tasks/${taskId}/accept/`, { method: 'POST' });
+            }
+            if (typeof fetchTasksFromAPI === 'function') {
+                await fetchTasksFromAPI();
+            }
+            renderTasks();
+        } catch (err) {
+            alert('Could not accept task: ' + (err.message || err));
+        }
+    };
+
+    window.quickCompleteTask = async function(taskId) {
+        if (!confirm('Are you sure you want to mark this task as completed?')) return;
+        try {
+            if (typeof completeTask === 'function') {
+                await completeTask(taskId);
+            } else {
+                await apiRequest(`/tasks/${taskId}/complete/`, { method: 'POST' });
+            }
+            if (typeof fetchTasksFromAPI === 'function') {
+                await fetchTasksFromAPI();
+            }
+            renderTasks();
+        } catch (err) {
+            alert('Could not complete task: ' + (err.message || err));
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 14. Initial Load
     // ─────────────────────────────────────────────────────────────────────────
     setViewMode(currentViewMode);   // show correct view from localStorage
 

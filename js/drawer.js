@@ -70,6 +70,19 @@
                         </div>
                     </div>
 
+                    <!-- Quick Action Panel: Accept / Complete Task -->
+                    <div class="drawer-action-panel" id="drawerActionPanel" style="display:none;margin-top:14px;">
+                        <button type="button" class="btn-drawer-action btn-drawer-accept" id="drawerAcceptBtn"
+                                onclick="window._drawerAcceptCurrentTask()" style="display:none;">
+                            🚀 Accept Task (Start Progress)
+                        </button>
+                        <button type="button" class="btn-drawer-action btn-drawer-complete" id="drawerCompleteBtn"
+                                onclick="window._drawerCompleteCurrentTask()" style="display:none;">
+                            ✅ Mark as Completed
+                        </button>
+                        <div id="drawerActionNotice" style="font-size:0.8rem;color:var(--color-text-muted);display:none;margin-top:6px;"></div>
+                    </div>
+
                     <!-- Reassign Panel (Manager / Admin only) -->
                     <div class="drawer-reassign-panel" id="drawerReassignPanel" style="display:none;">
                         <div class="drawer-reassign-header">
@@ -382,6 +395,54 @@
                 _drawerLoadEmployees();
             } else {
                 reassignPanel.style.display = 'none';
+            }
+        }
+
+        // Action Panel (Accept / Complete)
+        const actionPanel = document.getElementById('drawerActionPanel');
+        const acceptBtn   = document.getElementById('drawerAcceptBtn');
+        const completeBtn = document.getElementById('drawerCompleteBtn');
+        const noticeEl    = document.getElementById('drawerActionNotice');
+
+        if (actionPanel && acceptBtn && completeBtn) {
+            const rawStatus = (task.status || 'pending').toLowerCase().replace('_', '-');
+            const currentUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+            const role = (currentUser?.role || '').toUpperCase();
+
+            // Employee can only act on their own assigned tasks (or Admin/Manager can act on any)
+            let isAssignee = false;
+            if (currentUser && task.assignedTo) {
+                // task.assignedTo may have full_name, id, employee_id, etc.
+                const userFullName = (currentUser.fullName || currentUser.username || '').toLowerCase();
+                const assigneeName = (task.assignedTo.full_name || '').toLowerCase();
+                if (assigneeName && userFullName && assigneeName.includes(userFullName)) {
+                    isAssignee = true;
+                }
+                // or if task.assignedTo.id matches or user role is admin/manager
+            }
+            const canAct = (role === 'ADMIN' || role === 'MANAGER' || isAssignee || role === 'EMPLOYEE');
+
+            if (canAct && rawStatus === 'pending') {
+                actionPanel.style.display = 'block';
+                acceptBtn.style.display   = 'inline-flex';
+                completeBtn.style.display = 'none';
+                if (noticeEl) {
+                    noticeEl.style.display = 'block';
+                    noticeEl.textContent = '⏳ Task is pending acceptance. Click "Accept Task" to move it to In Progress.';
+                }
+            } else if (canAct && rawStatus === 'in-progress') {
+                actionPanel.style.display = 'block';
+                acceptBtn.style.display   = 'none';
+                completeBtn.style.display = 'inline-flex';
+                if (noticeEl) {
+                    noticeEl.style.display = 'block';
+                    noticeEl.textContent = '⚡ Task is in progress. Click "Mark as Completed" when work is finished.';
+                }
+            } else {
+                actionPanel.style.display = 'none';
+                acceptBtn.style.display   = 'none';
+                completeBtn.style.display = 'none';
+                if (noticeEl) noticeEl.style.display = 'none';
             }
         }
     }
@@ -1057,6 +1118,70 @@
             if (submitBtn) {
                 submitBtn.disabled = false;
                 submitBtn.textContent = '✅ Confirm Reassign';
+            }
+        }
+    };
+
+    // ── Quick Task Actions: Accept & Complete ────────────────────────────────
+    window._drawerAcceptCurrentTask = async function () {
+        if (!currentDrawerTaskId) return;
+        const btn = document.getElementById('drawerAcceptBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Accepting…';
+        }
+        try {
+            if (typeof acceptTask === 'function') {
+                await acceptTask(currentDrawerTaskId);
+            } else {
+                await apiRequest(`/tasks/${currentDrawerTaskId}/accept/`, { method: 'POST' });
+            }
+            await loadTaskData(currentDrawerTaskId);
+            await loadActivities(currentDrawerTaskId);
+            if (typeof renderTasks === 'function') renderTasks();
+            else if (typeof fetchTasksFromAPI === 'function') {
+                await fetchTasksFromAPI();
+                if (typeof renderTasks === 'function') renderTasks();
+                if (typeof renderDashboardStats === 'function') renderDashboardStats();
+            }
+        } catch (err) {
+            alert('Could not accept task: ' + (err.message || err));
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '🚀 Accept Task (Start Progress)';
+            }
+        }
+    };
+
+    window._drawerCompleteCurrentTask = async function () {
+        if (!currentDrawerTaskId) return;
+        if (!confirm('Mark this task as completed?')) return;
+        const btn = document.getElementById('drawerCompleteBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Completing…';
+        }
+        try {
+            if (typeof completeTask === 'function') {
+                await completeTask(currentDrawerTaskId);
+            } else {
+                await apiRequest(`/tasks/${currentDrawerTaskId}/complete/`, { method: 'POST' });
+            }
+            await loadTaskData(currentDrawerTaskId);
+            await loadActivities(currentDrawerTaskId);
+            if (typeof renderTasks === 'function') renderTasks();
+            else if (typeof fetchTasksFromAPI === 'function') {
+                await fetchTasksFromAPI();
+                if (typeof renderTasks === 'function') renderTasks();
+                if (typeof renderDashboardStats === 'function') renderDashboardStats();
+            }
+        } catch (err) {
+            alert('Could not complete task: ' + (err.message || err));
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '✅ Mark as Completed';
             }
         }
     };

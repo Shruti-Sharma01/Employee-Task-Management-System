@@ -414,6 +414,108 @@ class TaskActivityListView(generics.ListAPIView):
         return success_response("Task activities fetched successfully", response.data)
 
 
+class TaskAcceptView(generics.GenericAPIView):
+    """
+    POST /api/tasks/<pk>/accept/
+    Allows the assigned employee (or manager/admin) to accept the task.
+    Automatically moves task status from PENDING to IN_PROGRESS.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_task(self):
+        return get_object_or_404(visible_tasks_for(self.request.user), pk=self.kwargs["pk"])
+
+    def post(self, request, *args, **kwargs):
+        task = self.get_task()
+        user = request.user
+
+        # Validation: only assigned employee, manager, or admin can accept
+        is_assigned_user = (task.assigned_to and task.assigned_to.user_id == user.id)
+        is_manager_or_admin = user.role in (User.Role.ADMIN, User.Role.MANAGER)
+        if not (is_assigned_user or is_manager_or_admin):
+            raise PermissionDenied("Only the assigned employee or manager can accept this task.")
+
+        if task.status != Task.Status.PENDING:
+            return success_response(
+                f"Task is already {task.get_status_display()}.",
+                TaskSerializer(task).data
+            )
+
+        task.status = Task.Status.IN_PROGRESS
+        task.save(update_fields=["status", "updated_at"])
+
+        actor_name = user.get_full_name() or user.username
+        log_task_activity(
+            task, user, "STATUS_CHANGED",
+            f"{actor_name} accepted the task (Status: In Progress)"
+        )
+
+        # Notify task creator / manager
+        try:
+            from notifications.models import Notification
+            if task.assigned_by and task.assigned_by != user:
+                Notification.objects.create(
+                    user=task.assigned_by,
+                    title="Task Accepted 🚀",
+                    message=f'"{task.title}" has been accepted by {actor_name} and is now In Progress.',
+                    notification_type=Notification.NotificationType.TASK_UPDATED,
+                )
+        except Exception:
+            pass
+
+        return success_response("Task accepted and moved to In Progress", TaskSerializer(task).data)
+
+
+class TaskCompleteView(generics.GenericAPIView):
+    """
+    POST /api/tasks/<pk>/complete/
+    Allows the assigned employee (or manager/admin) to mark the task completed.
+    Automatically moves task status to COMPLETED and sets completed_at.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_task(self):
+        return get_object_or_404(visible_tasks_for(self.request.user), pk=self.kwargs["pk"])
+
+    def post(self, request, *args, **kwargs):
+        task = self.get_task()
+        user = request.user
+
+        is_assigned_user = (task.assigned_to and task.assigned_to.user_id == user.id)
+        is_creator = (task.assigned_by_id == user.id)
+        is_manager_or_admin = user.role in (User.Role.ADMIN, User.Role.MANAGER)
+        if not (is_assigned_user or is_creator or is_manager_or_admin):
+            raise PermissionDenied("You do not have permission to mark this task completed.")
+
+        if task.status == Task.Status.COMPLETED:
+            return success_response("Task is already completed.", TaskSerializer(task).data)
+
+        task.status = Task.Status.COMPLETED
+        task.completed_at = timezone.now()
+        task.save(update_fields=["status", "completed_at", "updated_at"])
+
+        actor_name = user.get_full_name() or user.username
+        log_task_activity(
+            task, user, "STATUS_CHANGED",
+            f"{actor_name} completed the task ✅"
+        )
+
+        # Notify task creator / manager
+        try:
+            from notifications.models import Notification
+            if task.assigned_by and task.assigned_by != user:
+                Notification.objects.create(
+                    user=task.assigned_by,
+                    title="Task Completed ✅",
+                    message=f'"{task.title}" has been marked as completed by {actor_name}.',
+                    notification_type=Notification.NotificationType.TASK_COMPLETED,
+                )
+        except Exception:
+            pass
+
+        return success_response("Task marked as completed", TaskSerializer(task).data)
+
+
 class TaskReassignView(generics.GenericAPIView):
     """
     PATCH /api/tasks/<pk>/reassign/
@@ -481,9 +583,11 @@ class TaskReassignView(generics.GenericAPIView):
         new_name = new_employee.full_name
         actor_name = user.get_full_name() or user.username
 
-        # Save
+        # Save (Reset status to PENDING so new assignee must accept it)
         task.assigned_to = new_employee
-        task.save(update_fields=["assigned_to", "updated_at"])
+        task.status = Task.Status.PENDING
+        task.completed_at = None
+        task.save(update_fields=["assigned_to", "status", "completed_at", "updated_at"])
 
         # Audit log
         msg = f"{actor_name} reassigned task from {old_name} to {new_name}"

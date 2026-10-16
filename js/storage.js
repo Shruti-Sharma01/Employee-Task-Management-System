@@ -217,6 +217,60 @@ async function updateTask(id, updatedFields) {
 }
 
 /**
+ * Accept task (moves from PENDING to IN_PROGRESS)
+ * @param {string|number} id
+ * @returns {Promise<Object>}
+ */
+async function acceptTask(id) {
+    if (typeof apiRequest === 'function') {
+        const response = await apiRequest(`/tasks/${id}/accept/`, {
+            method: 'POST'
+        });
+        if (response.ok && response.data) {
+            const updated = normalizeTask(response.data.data || response.data);
+            const tasks = getTasks();
+            const index = tasks.findIndex(t => String(t.id) === String(id));
+            if (index !== -1) {
+                tasks[index] = updated;
+                saveTasks(tasks);
+            }
+            return updated;
+        } else {
+            const msg = response.data?.message || response.data?.detail || 'Failed to accept task';
+            throw new Error(msg);
+        }
+    }
+    return updateTask(id, { status: 'in-progress' });
+}
+
+/**
+ * Complete task (moves status to COMPLETED)
+ * @param {string|number} id
+ * @returns {Promise<Object>}
+ */
+async function completeTask(id) {
+    if (typeof apiRequest === 'function') {
+        const response = await apiRequest(`/tasks/${id}/complete/`, {
+            method: 'POST'
+        });
+        if (response.ok && response.data) {
+            const updated = normalizeTask(response.data.data || response.data);
+            const tasks = getTasks();
+            const index = tasks.findIndex(t => String(t.id) === String(id));
+            if (index !== -1) {
+                tasks[index] = updated;
+                saveTasks(tasks);
+            }
+            return updated;
+        } else {
+            const msg = response.data?.message || response.data?.detail || 'Failed to complete task';
+            throw new Error(msg);
+        }
+    }
+    return updateTask(id, { status: 'completed' });
+}
+
+/**
  * Delete a task by ID from PostgreSQL Database
  * @param {string|number} id
  * @returns {Promise<boolean>}
