@@ -448,9 +448,9 @@
                     }
                 }
             } else if (rawStatus === 'in-progress') {
-                // In progress: Assignee (or manager/creator) can mark complete
-                const canComplete = isAssignee || role === 'ADMIN' || role === 'MANAGER';
-                if (canComplete) {
+                // In progress: ONLY the assigned employee can mark complete!
+                // Manager and Admin cannot mark complete; they only see the status notice.
+                if (isAssignee && !isManagerOrAdmin) {
                     actionPanel.style.display = 'block';
                     acceptBtn.style.display   = 'none';
                     completeBtn.style.display = 'inline-flex';
@@ -459,7 +459,15 @@
                         noticeEl.textContent = '⚡ Task is in progress. Click "Mark as Completed" when work is done.';
                     }
                 } else {
-                    actionPanel.style.display = 'none';
+                    // For manager / creator: show status that employee is working on it
+                    actionPanel.style.display = 'block';
+                    acceptBtn.style.display   = 'none';
+                    completeBtn.style.display = 'none';
+                    if (noticeEl) {
+                        noticeEl.style.display = 'block';
+                        const assigneeName = assignedUserObj?.full_name || 'the employee';
+                        noticeEl.textContent = `⚡ Task is currently In Progress by ${assigneeName}.`;
+                    }
                 }
             } else {
                 actionPanel.style.display = 'none';
@@ -1202,6 +1210,14 @@
 
     window._drawerCompleteCurrentTask = async function () {
         if (!currentDrawerTaskId) return;
+
+        const currentUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+        const role = (currentUser?.role || '').toUpperCase();
+        if (role === 'MANAGER' || role === 'ADMIN') {
+            alert('Managers and Admins cannot complete tasks. Only the assigned employee can mark this task completed.');
+            return;
+        }
+
         if (!confirm('Mark this task as completed?')) return;
         const btn = document.getElementById('drawerCompleteBtn');
         if (btn) {

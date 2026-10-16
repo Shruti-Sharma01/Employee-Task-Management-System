@@ -670,14 +670,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${getStatusBadge(task.status)}</td>
                 <td>
                     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                        ${(taskRawStatus === 'pending' && isAssignee && isEmp) ? `
-                        <button type="button" class="btn btn-primary" style="padding:4px 9px;font-size:0.75rem;background:#0038DE;color:#fff;"
-                            onclick="window.quickAcceptTask('${escapeHtml(task.id)}')" title="Accept task and move to In Progress">🚀 Accept</button>
-                        ` : ''}
-                        ${(taskRawStatus === 'in-progress' && (isAssignee || !isEmp)) ? `
-                        <button type="button" class="btn btn-success" style="padding:4px 9px;font-size:0.75rem;background:#16A34A;color:#fff;"
-                            onclick="window.quickCompleteTask('${escapeHtml(task.id)}')" title="Mark as Completed">✅ Complete</button>
-                        ` : ''}
                         <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
                             onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion & Attachments">💬 Notes</button>
                         <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
@@ -762,14 +754,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span title="Due Date">📅 ${escapeHtml(task.dueDate || 'No due date')}</span>
                 </div>
                 <div class="kanban-card-actions">
-                    ${(taskRawStatus === 'pending' && isAssignee && isEmp) ? `
-                    <button type="button" class="btn btn-primary" style="font-size:0.75rem;padding:3px 8px;background:#0038DE;color:#fff;"
-                        onclick="window.quickAcceptTask('${escapeHtml(task.id)}')" title="Accept task and move to In Progress">🚀 Accept</button>
-                    ` : ''}
-                    ${(taskRawStatus === 'in-progress' && (isAssignee || !isEmp)) ? `
-                    <button type="button" class="btn btn-success" style="font-size:0.75rem;padding:3px 8px;background:#16A34A;color:#fff;"
-                        onclick="window.quickCompleteTask('${escapeHtml(task.id)}')" title="Mark as Completed">✅ Complete</button>
-                    ` : ''}
                     <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
                         onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion & Attachments">💬 Notes</button>
                     <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"

@@ -488,11 +488,13 @@ class TaskCompleteView(generics.GenericAPIView):
         task = self.get_task()
         user = request.user
 
+        # Validation: ONLY the assigned employee can complete the task (Managers/Admins cannot complete)
+        if user.role != User.Role.EMPLOYEE:
+            raise PermissionDenied("Managers and Admins cannot complete tasks. Only the assigned employee can mark this task completed.")
+
         is_assigned_user = (task.assigned_to and task.assigned_to.user_id == user.id)
-        is_creator = (task.assigned_by_id == user.id)
-        is_manager_or_admin = user.role in (User.Role.ADMIN, User.Role.MANAGER)
-        if not (is_assigned_user or is_creator or is_manager_or_admin):
-            raise PermissionDenied("You do not have permission to mark this task completed.")
+        if not is_assigned_user:
+            raise PermissionDenied("Only the assigned employee can mark this task completed.")
 
         if task.status == Task.Status.COMPLETED:
             return success_response("Task is already completed.", TaskSerializer(task).data)
