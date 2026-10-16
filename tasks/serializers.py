@@ -75,13 +75,42 @@ class TaskWriteSerializer(serializers.ModelSerializer):
                     )
             elif user.role == User.Role.MANAGER:
                 profile = getattr(user, "employee_profile", None)
-                if profile is None or (employee.manager_id != profile.pk and employee.pk != profile.pk):
-                    raise serializers.ValidationError(
-                        "Managers can only assign tasks to their team members or themselves."
+                if profile is None:
+                    from employees.models import Employee
+                    from django.utils import timezone
+                    emp_id = f"EMP{user.id:04d}"
+                    full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+                    profile, _ = Employee.objects.get_or_create(
+                        user=user,
+                        defaults={
+                            "employee_id": emp_id,
+                            "full_name": full_name,
+                            "email": user.email or f"{user.username}@company.com",
+                            "department": "Management",
+                            "designation": "Manager",
+                            "joining_date": timezone.localdate(),
+                        }
                     )
+                # Manager cannot assign tasks to Admins or other Managers
+                if employee.user and employee.user.role in (User.Role.ADMIN, User.Role.MANAGER) and employee.pk != profile.pk:
+                    raise serializers.ValidationError(
+                        "Managers can only assign tasks to employees, not to other managers or admins."
+                    )
+                # Link unassigned employee to this manager
+                if employee.manager is None and employee.pk != profile.pk:
+                    employee.manager = profile
+                    employee.save(update_fields=["manager"])
         return employee
 
     def validate(self, attrs):
+        request = self.context.get("request")
+        user = request.user if request else None
+
+        # Manager must select an employee when creating a new task
+        if not self.instance and user and user.role == User.Role.MANAGER:
+            if "assigned_to" not in attrs or attrs.get("assigned_to") is None:
+                raise serializers.ValidationError({"assigned_to": "Please select an employee to assign this task to."})
+
         # On PATCH, fall back to the values already saved on the task.
         start = attrs.get("start_date", getattr(self.instance, "start_date", None))
         deadline = attrs.get("deadline", getattr(self.instance, "deadline", None))

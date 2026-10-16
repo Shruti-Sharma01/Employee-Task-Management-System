@@ -424,10 +424,11 @@
                 }
             }
 
-            // ONLY the assigned employee can Accept a pending task!
-            // Manager/Admin can reassign or monitor, but the employee must accept.
+            // ONLY an assigned EMPLOYEE can Accept a pending task!
+            // Manager and Admin must never see the Accept button.
+            const isManagerOrAdmin = (role === 'ADMIN' || role === 'MANAGER');
             if (rawStatus === 'pending') {
-                if (isAssignee) {
+                if (isAssignee && !isManagerOrAdmin) {
                     actionPanel.style.display = 'block';
                     acceptBtn.style.display   = 'inline-flex';
                     completeBtn.style.display = 'none';
@@ -1088,8 +1089,23 @@
             select.innerHTML = '<option value="">— No employees found —</option>';
             return;
         }
+
+        const currentUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+        const currentRole = (currentUser?.role || '').toUpperCase();
+
+        let validList = employees.filter(e => e.is_active !== false);
+        if (currentRole === 'MANAGER') {
+            // Managers assign/reassign to employees, not admins or other managers
+            validList = validList.filter(e => !e.user || e.user.role === 'EMPLOYEE');
+        }
+
+        if (validList.length === 0) {
+            select.innerHTML = '<option value="">— No available employees —</option>';
+            return;
+        }
+
         select.innerHTML = '<option value="">— Select employee —</option>' +
-            employees.map(e =>
+            validList.map(e =>
                 `<option value="${e.id}">${escapeHtml(e.full_name || e.employee_id)} (${escapeHtml(e.department || '')})</option>`
             ).join('');
     }
@@ -1147,6 +1163,14 @@
     // ── Quick Task Actions: Accept & Complete ────────────────────────────────
     window._drawerAcceptCurrentTask = async function () {
         if (!currentDrawerTaskId) return;
+
+        const currentUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+        const role = (currentUser?.role || '').toUpperCase();
+        if (role === 'MANAGER' || role === 'ADMIN') {
+            alert('Managers and Admins cannot accept tasks. Only the assigned employee can accept this task.');
+            return;
+        }
+
         const btn = document.getElementById('drawerAcceptBtn');
         if (btn) {
             btn.disabled = true;

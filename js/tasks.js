@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const assignToGroup        = document.getElementById('assignToGroup');
     const taskTitleError       = document.getElementById('taskTitleError');
     const taskDueDateError     = document.getElementById('taskDueDateError');
+    const taskAssignToError    = document.getElementById('taskAssignToError');
 
     // ─── DOM: File Upload & Attachments ───────────────────────────────────────
     const taskFormFiles        = document.getElementById('taskFormFiles');
@@ -102,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentRole === 'EMPLOYEE') return;   // employees don't assign
 
         try {
-            const res = await apiRequest('/employees/');
+            const res = await apiRequest('/employees/?page_size=200');
             if (!res.ok) return;
 
             const payload  = res.data?.data || res.data || {};
@@ -111,7 +112,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Clear and rebuild
             taskAssignToInput.innerHTML = '<option value="">— Select Employee —</option>';
-            empList.forEach(emp => {
+
+            // For managers, filter out Admins and other Managers so only employees appear
+            let filteredList = empList.filter(e => e.is_active !== false);
+            if (currentRole === 'MANAGER') {
+                filteredList = filteredList.filter(e => !e.user || e.user.role === 'EMPLOYEE');
+            }
+
+            filteredList.forEach(emp => {
                 const opt  = document.createElement('option');
                 opt.value  = emp.id;                         // Employee.pk
                 opt.textContent = `${emp.full_name} (${emp.employee_id || emp.department || ''})`;
@@ -182,8 +190,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function clearErrors() {
-        if (taskTitleError)   taskTitleError.textContent = '';
-        if (taskDueDateError) taskDueDateError.textContent = '';
+        if (taskTitleError)    taskTitleError.textContent = '';
+        if (taskDueDateError)  taskDueDateError.textContent = '';
+        if (taskAssignToError) taskAssignToError.textContent = '';
     }
 
     // ── Task Form Attachments Preview & Selection Handlers ────────────
@@ -311,7 +320,20 @@ document.addEventListener('DOMContentLoaded', () => {
             taskDueDateError.textContent = 'Please select a valid due date.';
             isValid = false;
         }
+
+        const editingId = taskIdInput.value;
+        const currentRole = (typeof getRole === 'function') ? getRole() : (window._userRole || 'EMPLOYEE');
+        if ((currentRole === 'MANAGER' || currentRole === 'ADMIN') && !editingId && (!taskAssignToInput || !taskAssignToInput.value)) {
+            if (taskAssignToError) taskAssignToError.textContent = 'Please select an employee to assign this task to.';
+            isValid = false;
+        }
         if (!isValid) return;
+
+        // When creating a task as manager/admin, initial status must be pending awaiting employee acceptance
+        let initialStatus = taskStatusInput.value;
+        if (!editingId && (currentRole === 'MANAGER' || currentRole === 'ADMIN')) {
+            initialStatus = 'pending';
+        }
 
         const taskData = {
             title:       titleVal,
@@ -319,11 +341,9 @@ document.addEventListener('DOMContentLoaded', () => {
             priority:    taskPriorityInput.value,
             category:    taskCategoryInput.value,
             dueDate:     dueDateVal,
-            status:      taskStatusInput.value,
+            status:      initialStatus,
             assignedTo:  taskAssignToInput ? (taskAssignToInput.value || null) : null
         };
-
-        const editingId = taskIdInput.value;
         const origText  = taskSubmitBtn ? taskSubmitBtn.textContent : 'Save Task';
 
         if (taskSubmitBtn) {
@@ -650,7 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${getStatusBadge(task.status)}</td>
                 <td>
                     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                        ${(taskRawStatus === 'pending' && isAssignee) ? `
+                        ${(taskRawStatus === 'pending' && isAssignee && isEmp) ? `
                         <button type="button" class="btn btn-primary" style="padding:4px 9px;font-size:0.75rem;background:#0038DE;color:#fff;"
                             onclick="window.quickAcceptTask('${escapeHtml(task.id)}')" title="Accept task and move to In Progress">🚀 Accept</button>
                         ` : ''}
@@ -742,7 +762,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span title="Due Date">📅 ${escapeHtml(task.dueDate || 'No due date')}</span>
                 </div>
                 <div class="kanban-card-actions">
-                    ${(taskRawStatus === 'pending' && isAssignee) ? `
+                    ${(taskRawStatus === 'pending' && isAssignee && isEmp) ? `
                     <button type="button" class="btn btn-primary" style="font-size:0.75rem;padding:3px 8px;background:#0038DE;color:#fff;"
                         onclick="window.quickAcceptTask('${escapeHtml(task.id)}')" title="Accept task and move to In Progress">🚀 Accept</button>
                     ` : ''}
@@ -892,6 +912,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // 13. Quick Action Handlers (Automated status transitions)
     // ─────────────────────────────────────────────────────────────────────────
     window.quickAcceptTask = async function(taskId) {
+        const currentRole = (typeof getRole === 'function') ? getRole() : (window._userRole || '');
+        if (currentRole === 'MANAGER' || currentRole === 'ADMIN') {
+            alert('Managers and Admins cannot accept tasks. Only the assigned employee can accept this task.');
+            return;
+        }
+
         try {
             if (typeof acceptTask === 'function') {
                 await acceptTask(taskId);

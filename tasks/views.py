@@ -200,6 +200,11 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
                 task, request.user, "REASSIGNED",
                 f"{actor_name} reassigned task to {new_name}"
             )
+            # Reassignment resets status to PENDING so new employee accepts it
+            if task.status != Task.Status.PENDING:
+                task.status = Task.Status.PENDING
+                task.completed_at = None
+                task.save(update_fields=["status", "completed_at", "updated_at"])
         if old_deadline != task.deadline:
             log_task_activity(
                 task, request.user, "DEADLINE_CHANGED",
@@ -429,7 +434,10 @@ class TaskAcceptView(generics.GenericAPIView):
         task = self.get_task()
         user = request.user
 
-        # Validation: ONLY the assigned employee can accept the task
+        # Validation: ONLY an assigned EMPLOYEE can accept the task (Managers/Admins cannot accept)
+        if user.role != User.Role.EMPLOYEE:
+            raise PermissionDenied("Managers and Admins cannot accept tasks. Only the assigned employee can accept.")
+
         is_assigned_user = (task.assigned_to and task.assigned_to.user_id == user.id)
         if not is_assigned_user:
             raise PermissionDenied("Only the assigned employee can accept this task.")
@@ -560,22 +568,35 @@ class TaskReassignView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Manager can only assign to their team members or themselves
+        # Manager can only reassign to employees (cannot reassign to other managers or admins)
         if user.role == User.Role.MANAGER:
             manager_profile = getattr(user, "employee_profile", None)
             if manager_profile is None:
+                from employees.models import Employee
+                from django.utils import timezone
+                manager_profile, _ = Employee.objects.get_or_create(
+                    user=user,
+                    defaults={
+                        "employee_id": f"EMP{user.id:04d}",
+                        "full_name": user.get_full_name() or user.username,
+                        "email": user.email or f"{user.username}@company.com",
+                        "department": "Management",
+                        "designation": "Manager",
+                        "joining_date": timezone.localdate(),
+                    }
+                )
+            # Manager cannot assign to other managers or admins
+            if new_employee.user and new_employee.user.role in (User.Role.ADMIN, User.Role.MANAGER) and new_employee.pk != manager_profile.pk:
                 from rest_framework.response import Response
                 return Response(
-                    {"message": "Manager profile not found."},
+                    {"message": "Managers can only assign tasks to employees."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            if (new_employee.manager_id != manager_profile.pk and
-                    new_employee.pk != manager_profile.pk):
-                from rest_framework.response import Response
-                return Response(
-                    {"message": "You can only reassign tasks to your own team members."},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+
+            # Link unassigned employee to this manager
+            if new_employee.manager is None and new_employee.pk != manager_profile.pk:
+                new_employee.manager = manager_profile
+                new_employee.save(update_fields=["manager"])
 
         old_employee = task.assigned_to
         old_name = old_employee.full_name if old_employee else "Unassigned"
