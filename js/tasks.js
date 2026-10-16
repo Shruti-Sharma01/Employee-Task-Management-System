@@ -618,6 +618,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const canDelete   = !isEmp || isCreator;
             const editLabel   = (isEmp && !isCreator) ? 'Update Status' : 'Edit';
 
+            // Check if current user is the assigned employee
+            let isAssignee = false;
+            const assignedUserObj = task.assignedTo || task.assigned_to;
+            if (currentUser && assignedUserObj) {
+                if (assignedUserObj.user_id && String(assignedUserObj.user_id) === String(currentUser.id)) {
+                    isAssignee = true;
+                } else {
+                    const userFullName = (currentUser.fullName || currentUser.username || '').toLowerCase().trim();
+                    const assigneeFullName = (assignedUserObj.full_name || '').toLowerCase().trim();
+                    if (assigneeFullName && userFullName && (assigneeFullName === userFullName || assigneeFullName.includes(userFullName))) {
+                        isAssignee = true;
+                    }
+                }
+            }
+            const taskRawStatus = (task.status || '').toLowerCase().replace('_', '-');
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>
@@ -634,11 +650,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${getStatusBadge(task.status)}</td>
                 <td>
                     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                        ${(task.status || '').toLowerCase() === 'pending' ? `
+                        ${(taskRawStatus === 'pending' && isAssignee) ? `
                         <button type="button" class="btn btn-primary" style="padding:4px 9px;font-size:0.75rem;background:#0038DE;color:#fff;"
                             onclick="window.quickAcceptTask('${escapeHtml(task.id)}')" title="Accept task and move to In Progress">🚀 Accept</button>
                         ` : ''}
-                        ${(task.status || '').toLowerCase() === 'in-progress' ? `
+                        ${(taskRawStatus === 'in-progress' && (isAssignee || !isEmp)) ? `
                         <button type="button" class="btn btn-success" style="padding:4px 9px;font-size:0.75rem;background:#16A34A;color:#fff;"
                             onclick="window.quickCompleteTask('${escapeHtml(task.id)}')" title="Mark as Completed">✅ Complete</button>
                         ` : ''}
@@ -695,6 +711,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const canDelete   = !isEmp || isCreator;
             const editLabel   = (isEmp && !isCreator) ? 'Update Status' : 'Edit';
 
+            // Check if current user is the assigned employee
+            let isAssignee = false;
+            const assignedUserObj = task.assignedTo || task.assigned_to;
+            if (currentUser && assignedUserObj) {
+                if (assignedUserObj.user_id && String(assignedUserObj.user_id) === String(currentUser.id)) {
+                    isAssignee = true;
+                } else {
+                    const userFullName = (currentUser.fullName || currentUser.username || '').toLowerCase().trim();
+                    const assigneeFullName = (assignedUserObj.full_name || '').toLowerCase().trim();
+                    if (assigneeFullName && userFullName && (assigneeFullName === userFullName || assigneeFullName.includes(userFullName))) {
+                        isAssignee = true;
+                    }
+                }
+            }
+            const taskRawStatus = (task.status || '').toLowerCase().replace('_', '-');
+
             card.innerHTML = `
                 <div class="kanban-card-title" onclick="openTaskDrawer('${escapeHtml(task.id)}')" 
                      style="cursor:pointer;" title="Click to view details & discussion">
@@ -710,11 +742,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span title="Due Date">📅 ${escapeHtml(task.dueDate || 'No due date')}</span>
                 </div>
                 <div class="kanban-card-actions">
-                    ${(task.status || '').toLowerCase() === 'pending' ? `
+                    ${(taskRawStatus === 'pending' && isAssignee) ? `
                     <button type="button" class="btn btn-primary" style="font-size:0.75rem;padding:3px 8px;background:#0038DE;color:#fff;"
                         onclick="window.quickAcceptTask('${escapeHtml(task.id)}')" title="Accept task and move to In Progress">🚀 Accept</button>
                     ` : ''}
-                    ${(task.status || '').toLowerCase() === 'in-progress' ? `
+                    ${(taskRawStatus === 'in-progress' && (isAssignee || !isEmp)) ? `
                     <button type="button" class="btn btn-success" style="font-size:0.75rem;padding:3px 8px;background:#16A34A;color:#fff;"
                         onclick="window.quickCompleteTask('${escapeHtml(task.id)}')" title="Mark as Completed">✅ Complete</button>
                     ` : ''}

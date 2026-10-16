@@ -409,34 +409,56 @@
             const currentUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
             const role = (currentUser?.role || '').toUpperCase();
 
-            // Employee can only act on their own assigned tasks (or Admin/Manager can act on any)
+            // Strict check: Is current logged-in user the assigned employee?
             let isAssignee = false;
-            if (currentUser && task.assignedTo) {
-                // task.assignedTo may have full_name, id, employee_id, etc.
-                const userFullName = (currentUser.fullName || currentUser.username || '').toLowerCase();
-                const assigneeName = (task.assignedTo.full_name || '').toLowerCase();
-                if (assigneeName && userFullName && assigneeName.includes(userFullName)) {
+            const assignedUserObj = task.assignedTo || task.assigned_to;
+            if (currentUser && assignedUserObj) {
+                if (assignedUserObj.user_id && String(assignedUserObj.user_id) === String(currentUser.id)) {
                     isAssignee = true;
+                } else {
+                    const userFullName = (currentUser.fullName || currentUser.username || '').toLowerCase().trim();
+                    const assigneeFullName = (assignedUserObj.full_name || '').toLowerCase().trim();
+                    if (assigneeFullName && userFullName && (assigneeFullName === userFullName || assigneeFullName.includes(userFullName))) {
+                        isAssignee = true;
+                    }
                 }
-                // or if task.assignedTo.id matches or user role is admin/manager
             }
-            const canAct = (role === 'ADMIN' || role === 'MANAGER' || isAssignee || role === 'EMPLOYEE');
 
-            if (canAct && rawStatus === 'pending') {
-                actionPanel.style.display = 'block';
-                acceptBtn.style.display   = 'inline-flex';
-                completeBtn.style.display = 'none';
-                if (noticeEl) {
-                    noticeEl.style.display = 'block';
-                    noticeEl.textContent = '⏳ Task is pending acceptance. Click "Accept Task" to move it to In Progress.';
+            // ONLY the assigned employee can Accept a pending task!
+            // Manager/Admin can reassign or monitor, but the employee must accept.
+            if (rawStatus === 'pending') {
+                if (isAssignee) {
+                    actionPanel.style.display = 'block';
+                    acceptBtn.style.display   = 'inline-flex';
+                    completeBtn.style.display = 'none';
+                    if (noticeEl) {
+                        noticeEl.style.display = 'block';
+                        noticeEl.textContent = '⏳ This task was assigned to you. Click "Accept Task" to begin work (moves to In Progress).';
+                    }
+                } else {
+                    // For manager / creator: show status that employee hasn't accepted yet
+                    actionPanel.style.display = 'block';
+                    acceptBtn.style.display   = 'none';
+                    completeBtn.style.display = 'none';
+                    if (noticeEl) {
+                        noticeEl.style.display = 'block';
+                        const assigneeName = assignedUserObj?.full_name || 'the employee';
+                        noticeEl.textContent = `⏳ Waiting for ${assigneeName} to accept this task.`;
+                    }
                 }
-            } else if (canAct && rawStatus === 'in-progress') {
-                actionPanel.style.display = 'block';
-                acceptBtn.style.display   = 'none';
-                completeBtn.style.display = 'inline-flex';
-                if (noticeEl) {
-                    noticeEl.style.display = 'block';
-                    noticeEl.textContent = '⚡ Task is in progress. Click "Mark as Completed" when work is finished.';
+            } else if (rawStatus === 'in-progress') {
+                // In progress: Assignee (or manager/creator) can mark complete
+                const canComplete = isAssignee || role === 'ADMIN' || role === 'MANAGER';
+                if (canComplete) {
+                    actionPanel.style.display = 'block';
+                    acceptBtn.style.display   = 'none';
+                    completeBtn.style.display = 'inline-flex';
+                    if (noticeEl) {
+                        noticeEl.style.display = 'block';
+                        noticeEl.textContent = '⚡ Task is in progress. Click "Mark as Completed" when work is done.';
+                    }
+                } else {
+                    actionPanel.style.display = 'none';
                 }
             } else {
                 actionPanel.style.display = 'none';

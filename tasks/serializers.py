@@ -23,7 +23,12 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def get_assigned_to(self, obj):
         e = obj.assigned_to
-        return {"id": e.id, "employee_id": e.employee_id, "full_name": e.full_name} if e else None
+        return {
+            "id": e.id,
+            "employee_id": e.employee_id,
+            "full_name": e.full_name,
+            "user_id": e.user_id if e else None,
+        } if e else None
 
     def get_assigned_by(self, obj):
         u = obj.assigned_by

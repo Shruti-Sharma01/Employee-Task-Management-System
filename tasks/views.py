@@ -429,11 +429,10 @@ class TaskAcceptView(generics.GenericAPIView):
         task = self.get_task()
         user = request.user
 
-        # Validation: only assigned employee, manager, or admin can accept
+        # Validation: ONLY the assigned employee can accept the task
         is_assigned_user = (task.assigned_to and task.assigned_to.user_id == user.id)
-        is_manager_or_admin = user.role in (User.Role.ADMIN, User.Role.MANAGER)
-        if not (is_assigned_user or is_manager_or_admin):
-            raise PermissionDenied("Only the assigned employee or manager can accept this task.")
+        if not is_assigned_user:
+            raise PermissionDenied("Only the assigned employee can accept this task.")
 
         if task.status != Task.Status.PENDING:
             return success_response(
