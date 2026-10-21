@@ -244,6 +244,35 @@ async function acceptTask(id) {
 }
 
 /**
+ * Reject task (moves from PENDING to REJECTED)
+ * @param {string|number} id
+ * @param {string} reason
+ * @returns {Promise<Object>}
+ */
+async function rejectTask(id, reason = '') {
+    if (typeof apiRequest === 'function') {
+        const response = await apiRequest(`/tasks/${id}/reject/`, {
+            method: 'POST',
+            body: JSON.stringify({ reason: reason || '' })
+        });
+        if (response.ok && response.data) {
+            const updated = normalizeTask(response.data.data || response.data);
+            const tasks = getTasks();
+            const index = tasks.findIndex(t => String(t.id) === String(id));
+            if (index !== -1) {
+                tasks[index] = updated;
+                saveTasks(tasks);
+            }
+            return updated;
+        } else {
+            const msg = response.data?.message || response.data?.detail || 'Failed to reject task';
+            throw new Error(msg);
+        }
+    }
+    return updateTask(id, { status: 'rejected' });
+}
+
+/**
  * Complete task (moves status to COMPLETED)
  * @param {string|number} id
  * @returns {Promise<Object>}

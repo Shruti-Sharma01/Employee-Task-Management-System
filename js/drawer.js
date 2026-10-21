@@ -70,16 +70,30 @@
                         </div>
                     </div>
 
-                    <!-- Quick Action Panel: Accept / Complete Task -->
+                    <!-- Quick Action Panel: Accept / Reject / Complete Task -->
                     <div class="drawer-action-panel" id="drawerActionPanel" style="display:none;margin-top:14px;">
-                        <button type="button" class="btn-drawer-action btn-drawer-accept" id="drawerAcceptBtn"
-                                onclick="window._drawerAcceptCurrentTask()" style="display:none;">
-                            🚀 Accept Task (Start Progress)
-                        </button>
-                        <button type="button" class="btn-drawer-action btn-drawer-complete" id="drawerCompleteBtn"
-                                onclick="window._drawerCompleteCurrentTask()" style="display:none;">
-                            ✅ Mark as Completed
-                        </button>
+                        <div class="drawer-action-btns" id="drawerActionBtns">
+                            <button type="button" class="btn-drawer-action btn-drawer-accept" id="drawerAcceptBtn"
+                                    onclick="window._drawerAcceptCurrentTask()" style="display:none;">
+                                🚀 Accept Task
+                            </button>
+                            <button type="button" class="btn-drawer-action btn-drawer-reject" id="drawerRejectBtn"
+                                    onclick="window._drawerOpenRejectForm()" style="display:none;">
+                                ❌ Reject Task
+                            </button>
+                            <button type="button" class="btn-drawer-action btn-drawer-complete" id="drawerCompleteBtn"
+                                    onclick="window._drawerCompleteCurrentTask()" style="display:none;">
+                                ✅ Mark as Completed
+                            </button>
+                        </div>
+                        <div id="drawerRejectForm" style="display:none;margin-top:10px;padding:12px;border-radius:8px;background:rgba(220,38,38,0.06);border:1px solid rgba(220,38,38,0.25);">
+                            <label style="font-size:0.8rem;font-weight:600;color:#dc2626;display:block;margin-bottom:5px;">Reason for Rejection</label>
+                            <input type="text" id="drawerRejectReason" class="drawer-reassign-input" placeholder="e.g. Current workload too high, skill mismatch..." style="margin-bottom:8px;width:100%;box-sizing:border-box;" />
+                            <div style="display:flex;gap:8px;justify-content:flex-end;">
+                                <button type="button" class="drawer-reassign-cancel-btn" style="padding:4px 10px;font-size:0.75rem;" onclick="window._drawerCloseRejectForm()">Cancel</button>
+                                <button type="button" class="btn-drawer-action btn-drawer-reject" id="drawerConfirmRejectBtn" style="padding:4px 12px;font-size:0.75rem;width:auto;" onclick="window._drawerSubmitRejectCurrentTask()">Confirm Rejection</button>
+                            </div>
+                        </div>
                         <div id="drawerActionNotice" style="font-size:0.8rem;color:var(--color-text-muted);display:none;margin-top:6px;"></div>
                     </div>
 
@@ -356,9 +370,18 @@
         const category = task.category || 'Development';
 
         if (badgesEl) {
+            let statusCls = 'badge-warning';
+            if (status === 'in-progress') statusCls = 'badge-info';
+            else if (status === 'completed') statusCls = 'badge-success';
+            else if (status === 'cancelled' || status === 'rejected') statusCls = 'badge-danger';
+
+            let priorityCls = 'badge-info';
+            if (priority === 'high') priorityCls = 'badge-danger';
+            else if (priority === 'medium') priorityCls = 'badge-warning';
+
             badgesEl.innerHTML = `
-                <span class="badge badge-${priority}">${capitalize(priority)} Priority</span>
-                <span class="badge badge-${status}">${formatStatusName(status)}</span>
+                <span class="badge ${priorityCls}">${capitalize(priority)} Priority</span>
+                <span class="badge ${statusCls}">${formatStatusName(status)}</span>
             `;
         }
 
@@ -398,11 +421,15 @@
             }
         }
 
-        // Action Panel (Accept / Complete)
+        // Action Panel (Accept / Reject / Complete)
         const actionPanel = document.getElementById('drawerActionPanel');
         const acceptBtn   = document.getElementById('drawerAcceptBtn');
+        const rejectBtn   = document.getElementById('drawerRejectBtn');
         const completeBtn = document.getElementById('drawerCompleteBtn');
         const noticeEl    = document.getElementById('drawerActionNotice');
+        const rejectForm  = document.getElementById('drawerRejectForm');
+
+        if (rejectForm) rejectForm.style.display = 'none';
 
         if (actionPanel && acceptBtn && completeBtn) {
             const rawStatus = (task.status || 'pending').toLowerCase().replace('_', '-');
@@ -424,27 +451,29 @@
                 }
             }
 
-            // ONLY an assigned EMPLOYEE can Accept a pending task!
-            // Manager and Admin must never see the Accept button.
+            // ONLY an assigned EMPLOYEE can Accept or Reject a pending task!
+            // Manager and Admin must never see the Accept/Reject buttons.
             const isManagerOrAdmin = (role === 'ADMIN' || role === 'MANAGER');
             if (rawStatus === 'pending') {
                 if (isAssignee && !isManagerOrAdmin) {
                     actionPanel.style.display = 'block';
                     acceptBtn.style.display   = 'inline-flex';
+                    if (rejectBtn) rejectBtn.style.display = 'inline-flex';
                     completeBtn.style.display = 'none';
                     if (noticeEl) {
                         noticeEl.style.display = 'block';
-                        noticeEl.textContent = '⏳ This task was assigned to you. Click "Accept Task" to begin work (moves to In Progress).';
+                        noticeEl.textContent = '⏳ This task was assigned to you. You can Accept to start working or Reject if unable to take it.';
                     }
                 } else {
                     // For manager / creator: show status that employee hasn't accepted yet
                     actionPanel.style.display = 'block';
                     acceptBtn.style.display   = 'none';
+                    if (rejectBtn) rejectBtn.style.display = 'none';
                     completeBtn.style.display = 'none';
                     if (noticeEl) {
                         noticeEl.style.display = 'block';
                         const assigneeName = assignedUserObj?.full_name || 'the employee';
-                        noticeEl.textContent = `⏳ Waiting for ${assigneeName} to accept this task.`;
+                        noticeEl.textContent = `⏳ Waiting for ${assigneeName} to accept or reject this task.`;
                     }
                 }
             } else if (rawStatus === 'in-progress') {
@@ -453,6 +482,7 @@
                 if (isAssignee && !isManagerOrAdmin) {
                     actionPanel.style.display = 'block';
                     acceptBtn.style.display   = 'none';
+                    if (rejectBtn) rejectBtn.style.display = 'none';
                     completeBtn.style.display = 'inline-flex';
                     if (noticeEl) {
                         noticeEl.style.display = 'block';
@@ -462,6 +492,7 @@
                     // For manager / creator: show status that employee is working on it
                     actionPanel.style.display = 'block';
                     acceptBtn.style.display   = 'none';
+                    if (rejectBtn) rejectBtn.style.display = 'none';
                     completeBtn.style.display = 'none';
                     if (noticeEl) {
                         noticeEl.style.display = 'block';
@@ -469,9 +500,26 @@
                         noticeEl.textContent = `⚡ Task is currently In Progress by ${assigneeName}.`;
                     }
                 }
+            } else if (rawStatus === 'rejected') {
+                actionPanel.style.display = 'block';
+                acceptBtn.style.display   = 'none';
+                if (rejectBtn) rejectBtn.style.display = 'none';
+                completeBtn.style.display = 'none';
+                if (noticeEl) {
+                    noticeEl.style.display = 'block';
+                    const assigneeName = assignedUserObj?.full_name || 'The employee';
+                    if (isManagerOrAdmin) {
+                        noticeEl.textContent = `❌ ${assigneeName} rejected this task. You can reassign it to another employee below.`;
+                    } else if (isAssignee) {
+                        noticeEl.textContent = '❌ You rejected this task.';
+                    } else {
+                        noticeEl.textContent = `❌ Task was rejected by ${assigneeName}.`;
+                    }
+                }
             } else {
                 actionPanel.style.display = 'none';
                 acceptBtn.style.display   = 'none';
+                if (rejectBtn) rejectBtn.style.display = 'none';
                 completeBtn.style.display = 'none';
                 if (noticeEl) noticeEl.style.display = 'none';
             }
@@ -1007,10 +1055,11 @@
 
     function formatStatusName(status) {
         const map = {
-            'pending': 'To-Do',
+            'pending': 'Pending',
             'in-progress': 'In Progress',
             'completed': 'Completed',
-            'cancelled': 'Cancelled'
+            'cancelled': 'Cancelled',
+            'rejected': 'Rejected'
         };
         return map[status] || capitalize(status);
     }
@@ -1203,7 +1252,72 @@
         } finally {
             if (btn) {
                 btn.disabled = false;
-                btn.textContent = '🚀 Accept Task (Start Progress)';
+                btn.textContent = '🚀 Accept Task';
+            }
+        }
+    };
+
+    // ── Reject Task Handlers ────────────────────────────────────────────────
+    window._drawerOpenRejectForm = function () {
+        const form = document.getElementById('drawerRejectForm');
+        const reasonInput = document.getElementById('drawerRejectReason');
+        if (form) {
+            form.style.display = 'block';
+            if (reasonInput) {
+                reasonInput.value = '';
+                reasonInput.focus();
+            }
+        }
+    };
+
+    window._drawerCloseRejectForm = function () {
+        const form = document.getElementById('drawerRejectForm');
+        if (form) form.style.display = 'none';
+    };
+
+    window._drawerSubmitRejectCurrentTask = async function () {
+        if (!currentDrawerTaskId) return;
+
+        const currentUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+        const role = (currentUser?.role || '').toUpperCase();
+        if (role === 'MANAGER' || role === 'ADMIN') {
+            alert('Managers and Admins cannot reject tasks. Only the assigned employee can reject this task.');
+            return;
+        }
+
+        const reasonInput = document.getElementById('drawerRejectReason');
+        const confirmBtn = document.getElementById('drawerConfirmRejectBtn');
+        const reason = reasonInput ? reasonInput.value.trim() : '';
+
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Rejecting…';
+        }
+
+        try {
+            if (typeof rejectTask === 'function') {
+                await rejectTask(currentDrawerTaskId, reason);
+            } else {
+                await apiRequest(`/tasks/${currentDrawerTaskId}/reject/`, {
+                    method: 'POST',
+                    body: JSON.stringify({ reason })
+                });
+            }
+            window._drawerCloseRejectForm();
+            await loadTaskData(currentDrawerTaskId);
+            await loadActivities(currentDrawerTaskId);
+            if (typeof renderTasks === 'function') renderTasks();
+            else if (typeof fetchTasksFromAPI === 'function') {
+                await fetchTasksFromAPI();
+                if (typeof renderTasks === 'function') renderTasks();
+                if (typeof renderDashboardStats === 'function') renderDashboardStats();
+            }
+        } catch (err) {
+            alert('Could not reject task: ' + (err.message || err));
+        } finally {
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Confirm Rejection';
             }
         }
     };

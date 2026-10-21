@@ -17,6 +17,7 @@ from .views import (
     TaskExportPDFView,
     TaskListCreateView,
     TaskReassignView,
+    TaskRejectView,
 )
 
 urlpatterns = [
@@ -30,6 +31,7 @@ urlpatterns = [
     path("pending/", PendingTasksView.as_view(), name="task-pending"),
     path("<int:pk>/", TaskDetailView.as_view(), name="task-detail"),
     path("<int:pk>/accept/", TaskAcceptView.as_view(), name="task-accept"),
+    path("<int:pk>/reject/", TaskRejectView.as_view(), name="task-reject"),
     path("<int:pk>/complete/", TaskCompleteView.as_view(), name="task-complete"),
     path("<int:pk>/reassign/", TaskReassignView.as_view(), name="task-reassign"),
     path("<int:task_id>/comments/", TaskCommentListCreateView.as_view(), name="task-comments"),

@@ -52,6 +52,7 @@ class Task(models.Model):
         IN_PROGRESS = "IN_PROGRESS", "In Progress"
         COMPLETED = "COMPLETED", "Completed"
         CANCELLED = "CANCELLED", "Cancelled"
+        REJECTED = "REJECTED", "Rejected"
 
     title = models.CharField(
         max_length=200

@@ -395,7 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 window._drawerReloadAttachments(targetId);
             }
         } catch (err) {
-            alert('Error saving task: ' + (err.message || err));
+            alert('Please accept the assigned task from the Notes section before proceeding.');
         } finally {
             if (taskSubmitBtn) {
                 taskSubmitBtn.disabled    = false;
@@ -875,6 +875,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (s === 'in-progress' || s === 'in progress') { cls = 'badge-info';    label = 'In Progress'; }
         else if (s === 'completed')                      { cls = 'badge-success'; label = 'Completed'; }
         else if (s === 'cancelled')                      { cls = 'badge-danger';  label = 'Cancelled'; }
+        else if (s === 'rejected')                       { cls = 'badge-danger';  label = 'Rejected'; }
         return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
     }
 

@@ -473,6 +473,63 @@ class TaskAcceptView(generics.GenericAPIView):
         return success_response("Task accepted and moved to In Progress", TaskSerializer(task).data)
 
 
+class TaskRejectView(generics.GenericAPIView):
+    """
+    POST /api/tasks/<pk>/reject/
+    Body: { "reason": "<optional reason>" }
+    Allows the assigned employee to reject a pending task.
+    Automatically moves task status from PENDING to REJECTED.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_task(self):
+        return get_object_or_404(visible_tasks_for(self.request.user), pk=self.kwargs["pk"])
+
+    def post(self, request, *args, **kwargs):
+        task = self.get_task()
+        user = request.user
+
+        # Validation: ONLY the assigned employee can reject the task (Managers/Admins cannot reject)
+        if user.role != User.Role.EMPLOYEE:
+            raise PermissionDenied("Managers and Admins cannot reject tasks. Only the assigned employee can reject.")
+
+        is_assigned_user = (task.assigned_to and task.assigned_to.user_id == user.id)
+        if not is_assigned_user:
+            raise PermissionDenied("Only the assigned employee can reject this task.")
+
+        if task.status != Task.Status.PENDING:
+            return success_response(
+                f"Task is already {task.get_status_display()}.",
+                TaskSerializer(task).data
+            )
+
+        reason = request.data.get("reason", "").strip() or "No specific reason provided"
+
+        task.status = Task.Status.REJECTED
+        task.save(update_fields=["status", "updated_at"])
+
+        actor_name = user.get_full_name() or user.username
+        msg = f"{actor_name} rejected the task"
+        if reason:
+            msg += f" — Reason: {reason}"
+        log_task_activity(task, user, "STATUS_CHANGED", msg)
+
+        # Notify task creator / manager
+        try:
+            from notifications.models import Notification
+            if task.assigned_by and task.assigned_by != user:
+                Notification.objects.create(
+                    user=task.assigned_by,
+                    title="Task Rejected ❌",
+                    message=f'"{task.title}" was rejected by {actor_name}. Reason: {reason}',
+                    notification_type=Notification.NotificationType.TASK_UPDATED,
+                )
+        except Exception:
+            pass
+
+        return success_response("Task rejected successfully", TaskSerializer(task).data)
+
+
 class TaskCompleteView(generics.GenericAPIView):
     """
     POST /api/tasks/<pk>/complete/
