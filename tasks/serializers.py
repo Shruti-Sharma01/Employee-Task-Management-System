@@ -17,8 +17,8 @@ class TaskSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             "id", "title", "description", "assigned_to", "assigned_by",
-            "priority", "status", "category", "start_date", "deadline",
-            "accepted_at", "completed_at",
+            "priority", "status", "status_reason", "category", "start_date", "deadline",
+            "accepted_at", "completed_at", "rejected_at", "aborted_at",
             "is_overdue", "created_at", "updated_at",
         ]
 
@@ -118,12 +118,16 @@ class TaskWriteSerializer(serializers.ModelSerializer):
             if cur_status == Task.Status.PENDING and new_status == Task.Status.COMPLETED:
                 raise serializers.ValidationError({"status": "Pending tasks must be accepted before they can be marked completed."})
             if user and user.role == User.Role.EMPLOYEE:
-                if cur_status == Task.Status.PENDING and new_status != Task.Status.PENDING:
-                    raise serializers.ValidationError({"status": "Pending tasks must be accepted first before status can be changed."})
-                if new_status == Task.Status.PENDING and cur_status != Task.Status.PENDING:
-                    raise serializers.ValidationError({"status": "Cannot move task backwards to pending."})
+                if cur_status in (Task.Status.COMPLETED, Task.Status.REJECTED, Task.Status.ABORTED, Task.Status.CANCELLED):
+                    raise serializers.ValidationError({"status": f"This task is locked ({self.instance.get_status_display()}) and cannot be modified."})
+                if cur_status == Task.Status.PENDING:
+                    raise serializers.ValidationError({"status": "Pending tasks must be accepted or rejected before status can be changed."})
+                if cur_status == Task.Status.IN_PROGRESS and new_status != Task.Status.COMPLETED:
+                    raise serializers.ValidationError({"status": "From In Progress, employees can only transition the task to Completed."})
                 if new_status == Task.Status.CANCELLED:
                     raise serializers.ValidationError({"status": "Only managers and admins can cancel a task."})
+                if new_status in (Task.Status.REJECTED, Task.Status.ABORTED):
+                    raise serializers.ValidationError({"status": f"Employees cannot set {new_status} via normal status update."})
 
         # On PATCH, fall back to the values already saved on the task.
         start = attrs.get("start_date", getattr(self.instance, "start_date", None))
@@ -145,35 +149,30 @@ class TaskStatusSerializer(serializers.ModelSerializer):
         model = Task
         fields = ["status"]
 
+    def validate(self, attrs):
+        cur_status = self.instance.status if self.instance else None
+        if cur_status in (Task.Status.COMPLETED, Task.Status.REJECTED, Task.Status.ABORTED, Task.Status.CANCELLED):
+            raise serializers.ValidationError({"status": f"This task is locked ({self.instance.get_status_display()}) and cannot be modified."})
+        return super().validate(attrs)
+
     def validate_status(self, value):
         cur_status = self.instance.status if self.instance else None
-        request = self.context.get("request")
-        user = request.user if request else None
 
-        # 1. pending -> can only change via the accept endpoint
+        # 1. Locked terminal statuses
+        if cur_status in (Task.Status.COMPLETED, Task.Status.REJECTED, Task.Status.ABORTED, Task.Status.CANCELLED):
+            raise serializers.ValidationError(f"This task is locked ({self.instance.get_status_display()}) and cannot be modified.")
+
+        # 2. Pending tasks cannot transition via generic update
         if cur_status == Task.Status.PENDING:
-            raise serializers.ValidationError("Pending tasks must be accepted before status can be changed.")
+            raise serializers.ValidationError("Pending tasks must be accepted or rejected before status can be changed.")
 
-        # 2. Cannot move backwards to pending
-        if value == Task.Status.PENDING and cur_status != Task.Status.PENDING:
-            raise serializers.ValidationError("Cannot move task backwards to pending.")
+        # 3. In the generic task update endpoint, for employees allow only IN_PROGRESS -> COMPLETED
+        if cur_status == Task.Status.IN_PROGRESS:
+            if value != Task.Status.COMPLETED:
+                raise serializers.ValidationError("From In Progress, employees can only transition the task to Completed.")
+            return value
 
-        # 3. Cancelled can only be set by manager/admin
-        if value == Task.Status.CANCELLED:
-            raise serializers.ValidationError("Employees cannot cancel a task. Only managers and admins can cancel.")
-
-        if cur_status == Task.Status.CANCELLED:
-            raise serializers.ValidationError("This task was cancelled and can't be changed.")
-
-        # 4. in_progress -> completed is allowed for assigned employee
-        if cur_status == Task.Status.IN_PROGRESS and value not in (Task.Status.IN_PROGRESS, Task.Status.COMPLETED):
-            raise serializers.ValidationError("From In Progress, you can only move the task to Completed.")
-
-        # 5. Completed cannot move backwards
-        if cur_status == Task.Status.COMPLETED and value != Task.Status.COMPLETED:
-            raise serializers.ValidationError("Completed tasks cannot be moved backwards.")
-
-        return value
+        raise serializers.ValidationError("Invalid status transition for employee.")
     
 class TaskCommentSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()  # read-only by nature

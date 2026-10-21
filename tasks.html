@@ -170,6 +170,7 @@
                         <option value="completed">Completed</option>
                         <option value="cancelled">Cancelled</option>
                         <option value="rejected">Rejected</option>
+                        <option value="aborted">Aborted</option>
                     </select>
                 </div>
 
@@ -255,15 +256,20 @@
                         <span class="error-message" id="taskAssignToError"></span>
                     </div>
 
-                    <div class="form-group">
-                        <label for="taskStatus">Status</label>
+                    <div class="form-group" id="taskStatusGroup">
+                        <label for="taskStatus" id="taskStatusLabel">Status</label>
+                        <!-- Manager & Admin dropdown: Only Pending, In Progress, Completed, Cancelled -->
                         <select id="taskStatus" name="taskStatus">
                             <option value="pending">Pending</option>
                             <option value="in-progress">In Progress</option>
                             <option value="completed">Completed</option>
                             <option value="cancelled">Cancelled</option>
-                            <option value="rejected">Rejected</option>
                         </select>
+                        <!-- Container for Employee Actions (replaces static dropdown for employees) -->
+                        <div id="employeeStatusActionGroup" style="display:none;margin-top:6px;">
+                            <div id="employeeStatusActionButtons" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"></div>
+                            <p id="employeeStatusLockedNote" style="display:none;font-size:0.85rem;margin:0;"></p>
+                        </div>
                     </div>
 
                     <!-- File Attachments Upload Zone -->
@@ -368,6 +374,34 @@
                         <!-- Cards injected via JS -->
                     </div>
                 </div>
+
+                <!-- Column: Rejected -->
+                <div class="kanban-column" data-status="rejected">
+                    <div class="kanban-column-header header-rejected">
+                        <div class="column-title-wrap">
+                            <span class="column-dot dot-rejected"></span>
+                            <h3>Rejected</h3>
+                        </div>
+                        <span class="column-count" id="countRejected">0</span>
+                    </div>
+                    <div class="kanban-cards-wrapper" id="kanbanRejected" data-status="rejected">
+                        <!-- Cards injected via JS -->
+                    </div>
+                </div>
+
+                <!-- Column: Aborted -->
+                <div class="kanban-column" data-status="aborted">
+                    <div class="kanban-column-header header-aborted">
+                        <div class="column-title-wrap">
+                            <span class="column-dot dot-aborted"></span>
+                            <h3>Aborted</h3>
+                        </div>
+                        <span class="column-count" id="countAborted">0</span>
+                    </div>
+                    <div class="kanban-cards-wrapper" id="kanbanAborted" data-status="aborted">
+                        <!-- Cards injected via JS -->
+                    </div>
+                </div>
             </section>
 
             <!-- Delete Confirmation Modal -->
@@ -378,6 +412,28 @@
                     <div class="modal-actions">
                         <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
                         <button class="btn btn-secondary" id="cancelDeleteBtn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reject / Abort Status Reason Modal -->
+            <div class="modal" id="statusReasonModal" hidden>
+                <div class="modal-content" style="max-width: 480px;">
+                    <h3 id="statusReasonModalTitle">Reject Task</h3>
+                    <p id="statusReasonModalDesc" style="color:var(--color-text-muted);font-size:0.9rem;margin-bottom:14px;">
+                        Please provide a reason for rejecting this task. The assigning manager will be notified.
+                    </p>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label for="statusReasonInput" style="font-weight:600;font-size:0.85rem;margin-bottom:6px;display:block;">Reason * (minimum 10 characters)</label>
+                        <textarea id="statusReasonInput" rows="4" style="width:100%;box-sizing:border-box;border-radius:6px;padding:8px 10px;"
+                                  placeholder="Explain why you are rejecting or aborting this task..."></textarea>
+                        <span class="error-message" id="statusReasonError" style="display:block;margin-top:6px;font-size:0.8rem;color:#e74c3c;">
+                            Reason must be at least 10 characters (currently 0/10)
+                        </span>
+                    </div>
+                    <div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;">
+                        <button type="button" class="btn btn-secondary" id="cancelStatusReasonBtn">Cancel</button>
+                        <button type="button" class="btn btn-danger" id="confirmStatusReasonBtn" disabled>Confirm</button>
                     </div>
                 </div>
             </div>

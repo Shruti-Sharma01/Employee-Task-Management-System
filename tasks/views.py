@@ -488,7 +488,7 @@ class TaskAcceptView(generics.GenericAPIView):
 class TaskRejectView(generics.GenericAPIView):
     """
     POST / PATCH /api/tasks/<pk>/reject/
-    Body: { "reason": "<optional reason>" }
+    Body: { "reason": "<mandatory reason, min 10 chars>" }
     Allows the assigned employee to reject a pending task.
     Automatically moves task status from PENDING to REJECTED.
     """
@@ -521,21 +521,29 @@ class TaskRejectView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        reason = request.data.get("reason", "").strip() or "No specific reason provided"
+        reason = request.data.get("reason", "")
+        if not isinstance(reason, str):
+            reason = ""
+        reason = reason.strip()
+        if not reason or len(reason) < 10:
+            return Response(
+                {"success": False, "message": "A reason of at least 10 characters is required to reject a task."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         task.status = Task.Status.REJECTED
-        task.save(update_fields=["status", "updated_at"])
+        task.status_reason = reason
+        task.rejected_at = timezone.now()
+        task.save(update_fields=["status", "status_reason", "rejected_at", "updated_at"])
 
         actor_name = user.get_full_name() or user.username
-        msg = f"{actor_name} rejected the task"
-        if reason:
-            msg += f" — Reason: {reason}"
+        msg = f"{actor_name} rejected the task — Reason: {reason}"
         log_task_activity(task, user, "STATUS_CHANGED", msg)
 
-        # Notify task creator / manager
+        # Notify task creator / manager, including the reason
         try:
             from notifications.models import Notification
-            if task.assigned_by and task.assigned_by != user:
+            if task.assigned_by:
                 Notification.objects.create(
                     user=task.assigned_by,
                     title="Task Rejected ❌",
@@ -546,6 +554,77 @@ class TaskRejectView(generics.GenericAPIView):
             pass
 
         return success_response("Task rejected successfully", TaskSerializer(task).data)
+
+
+class TaskAbortView(generics.GenericAPIView):
+    """
+    POST / PATCH /api/tasks/<pk>/abort/
+    Body: { "reason": "<mandatory reason, min 10 chars>" }
+    Allows the assigned employee to abort an in-progress task.
+    Automatically moves task status from IN_PROGRESS to ABORTED.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_task(self):
+        return get_object_or_404(Task.objects.select_related("assigned_to__user", "assigned_by"), pk=self.kwargs["pk"])
+
+    def patch(self, request, *args, **kwargs):
+        return self._process_abort(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return self._process_abort(request, *args, **kwargs)
+
+    def _process_abort(self, request, *args, **kwargs):
+        from rest_framework.response import Response
+        task = self.get_task()
+        user = request.user
+
+        if user.role != User.Role.EMPLOYEE:
+            raise PermissionDenied("Only the assigned employee can abort this task.")
+
+        is_assigned_user = (task.assigned_to and task.assigned_to.user_id == user.id)
+        if not is_assigned_user:
+            raise PermissionDenied("Only the assigned employee can abort this task.")
+
+        if task.status != Task.Status.IN_PROGRESS:
+            return Response(
+                {"success": False, "message": f"Task cannot be aborted because its status is {task.get_status_display()} (only In Progress tasks can be aborted)."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        reason = request.data.get("reason", "")
+        if not isinstance(reason, str):
+            reason = ""
+        reason = reason.strip()
+        if not reason or len(reason) < 10:
+            return Response(
+                {"success": False, "message": "A reason of at least 10 characters is required to abort a task."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        task.status = Task.Status.ABORTED
+        task.status_reason = reason
+        task.aborted_at = timezone.now()
+        task.save(update_fields=["status", "status_reason", "aborted_at", "updated_at"])
+
+        actor_name = user.get_full_name() or user.username
+        msg = f"{actor_name} aborted the task — Reason: {reason}"
+        log_task_activity(task, user, "STATUS_CHANGED", msg)
+
+        # Notify task creator / manager, including the reason
+        try:
+            from notifications.models import Notification
+            if task.assigned_by:
+                Notification.objects.create(
+                    user=task.assigned_by,
+                    title="Task Aborted ⚠️",
+                    message=f'"{task.title}" was aborted by {actor_name}. Reason: {reason}',
+                    notification_type=Notification.NotificationType.TASK_UPDATED,
+                )
+        except Exception:
+            pass
+
+        return success_response("Task aborted successfully", TaskSerializer(task).data)
 
 
 class TaskCompleteView(generics.GenericAPIView):
@@ -577,15 +656,18 @@ class TaskCompleteView(generics.GenericAPIView):
         if not is_assigned_user:
             raise PermissionDenied("Only the assigned employee can mark this task completed.")
 
-        # Reject marking a pending task directly as completed
-        if task.status == Task.Status.PENDING:
+        # Locked tasks or invalid state
+        if task.status in (Task.Status.COMPLETED, Task.Status.REJECTED, Task.Status.ABORTED, Task.Status.CANCELLED):
             return Response(
-                {"success": False, "message": "Pending tasks must be accepted before they can be marked completed."},
+                {"success": False, "message": f"This task is locked ({task.get_status_display()}) and cannot be modified."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if task.status == Task.Status.COMPLETED:
-            return success_response("Task is already completed.", TaskSerializer(task).data)
+        if task.status != Task.Status.IN_PROGRESS:
+            return Response(
+                {"success": False, "message": f"Only In Progress tasks can be marked completed (current status: {task.get_status_display()})."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         task.status = Task.Status.COMPLETED
         task.completed_at = timezone.now()

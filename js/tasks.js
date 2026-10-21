@@ -66,18 +66,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const kanbanInProgress     = document.getElementById('kanbanInProgress');
     const kanbanCompleted      = document.getElementById('kanbanCompleted');
     const kanbanCancelled      = document.getElementById('kanbanCancelled');
+    const kanbanRejected       = document.getElementById('kanbanRejected');
+    const kanbanAborted        = document.getElementById('kanbanAborted');
 
     const countPending         = document.getElementById('countPending');
     const countInProgress      = document.getElementById('countInProgress');
     const countCompleted       = document.getElementById('countCompleted');
     const countCancelled       = document.getElementById('countCancelled');
+    const countRejected        = document.getElementById('countRejected');
+    const countAborted         = document.getElementById('countAborted');
+
+    // ─── DOM: Status Reason Modal (Reject / Abort) ───────────────────────────
+    const statusReasonModal      = document.getElementById('statusReasonModal');
+    const statusReasonModalTitle = document.getElementById('statusReasonModalTitle');
+    const statusReasonModalDesc  = document.getElementById('statusReasonModalDesc');
+    const statusReasonInput      = document.getElementById('statusReasonInput');
+    const statusReasonError      = document.getElementById('statusReasonError');
+    const cancelStatusReasonBtn  = document.getElementById('cancelStatusReasonBtn');
+    const confirmStatusReasonBtn = document.getElementById('confirmStatusReasonBtn');
+    let currentReasonAction      = null; // 'reject' | 'abort'
+    let currentReasonTaskId      = null;
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 1. Keep Delete Modal closed on load
+    // 1. Keep Modals closed on load
     // ─────────────────────────────────────────────────────────────────────────
     if (deleteModal) {
         deleteModal.hidden = true;
         deleteModal.style.display = 'none';
+    }
+    if (statusReasonModal) {
+        statusReasonModal.hidden = true;
+        statusReasonModal.style.display = 'none';
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -196,6 +215,11 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedFormFiles = [];
         if (formFilesPreviewList) formFilesPreviewList.innerHTML = '';
         clearErrors();
+        if (taskStatusInput) taskStatusInput.style.display = 'block';
+        const employeeStatusActionGroup = document.getElementById('employeeStatusActionGroup');
+        if (employeeStatusActionGroup) employeeStatusActionGroup.style.display = 'none';
+        const taskSubmitBtn = document.getElementById('taskSubmitBtn') || taskForm.querySelector('button[type="submit"]');
+        if (taskSubmitBtn) taskSubmitBtn.style.display = 'inline-block';
     }
 
     function clearErrors() {
@@ -437,8 +461,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
         const isCreator   = currentUser && task.assignedBy && (String(currentUser.id) === String(task.assignedBy.id));
         const canOnlyEditStatus = isEmp && !isCreator;
+        const taskRawStatus     = (task.status || 'pending').toLowerCase().replace('_', '-');
+
+        // Locked tasks for employees have no actions at all
+        if (canOnlyEditStatus && ['completed', 'rejected', 'aborted', 'cancelled'].includes(taskRawStatus)) {
+            alert(`This task is locked (${task.status}) and cannot be updated.`);
+            return;
+        }
 
         const employeeNote = document.getElementById('employeeEditNote');
+        const employeeStatusActionGroup   = document.getElementById('employeeStatusActionGroup');
+        const employeeStatusActionButtons = document.getElementById('employeeStatusActionButtons');
+        const employeeStatusLockedNote    = document.getElementById('employeeStatusLockedNote');
+        const taskSubmitBtn = document.getElementById('taskSubmitBtn') || taskForm.querySelector('button[type="submit"]');
 
         [taskTitleInput, taskDescriptionInput, taskPriorityInput,
          taskCategoryInput, taskDueDateInput].forEach(el => {
@@ -456,20 +491,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (canOnlyEditStatus) {
-            formHeading.textContent = 'Update Task Status';
+            formHeading.textContent = 'Task Actions';
             if (formAttachmentsGroup) formAttachmentsGroup.style.display = 'none';
+            if (taskStatusInput) taskStatusInput.style.display = 'none';
+            if (employeeStatusActionGroup) employeeStatusActionGroup.style.display = 'block';
+            if (taskSubmitBtn) taskSubmitBtn.style.display = 'none';
+
+            if (employeeStatusActionButtons) {
+                employeeStatusActionButtons.innerHTML = '';
+                if (taskRawStatus === 'pending') {
+                    employeeStatusActionButtons.innerHTML = `
+                        <button type="button" class="btn btn-primary" style="background:#16a34a;border-color:#16a34a;color:#fff;"
+                            onclick="handleAcceptTaskCard(event, '${escapeHtml(task.id)}'); closeForm();">✓ Accept Task</button>
+                        <button type="button" class="btn btn-danger"
+                            onclick="closeForm(); openRejectModalHandler(event, '${escapeHtml(task.id)}', '${escapeHtml(task.title)}');">✕ Reject Task</button>
+                    `;
+                } else if (taskRawStatus === 'in-progress') {
+                    employeeStatusActionButtons.innerHTML = `
+                        <button type="button" class="btn btn-primary" style="background:#16a34a;border-color:#16a34a;color:#fff;"
+                            onclick="handleCompleteTaskCard(event, '${escapeHtml(task.id)}'); closeForm();">✓ Complete Task</button>
+                        <button type="button" class="btn btn-danger"
+                            onclick="closeForm(); openAbortModalHandler(event, '${escapeHtml(task.id)}', '${escapeHtml(task.title)}');">⊘ Abort Task</button>
+                    `;
+                }
+            }
+
             if (!employeeNote) {
                 const note = document.createElement('p');
                 note.id    = 'employeeEditNote';
                 note.style.cssText = 'font-size:0.8rem;color:#8e44ad;margin-bottom:12px;'
                                    + 'background:rgba(142,68,173,0.08);padding:8px 12px;'
                                    + 'border-radius:6px;border-left:3px solid #8e44ad;';
-                note.innerHTML = '👤 <strong>Employee:</strong> This task was assigned by manager. You can only update the task status.';
+                note.innerHTML = '👤 <strong>Employee:</strong> Choose an available action for this task.';
                 taskForm.prepend(note);
             }
         } else {
             formHeading.textContent = isCreator ? 'Edit My Task' : 'Edit Task';
             if (formAttachmentsGroup) formAttachmentsGroup.style.display = 'block';
+            if (taskStatusInput) taskStatusInput.style.display = 'block';
+            if (employeeStatusActionGroup) employeeStatusActionGroup.style.display = 'none';
+            if (taskSubmitBtn) taskSubmitBtn.style.display = 'inline-block';
             const existingNote = document.getElementById('employeeEditNote');
             if (existingNote) existingNote.remove();
             [taskTitleInput, taskDescriptionInput, taskPriorityInput,
@@ -665,21 +726,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let actionsHtml = `
                 <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
-                    onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion & Attachments">💬 Notes</button>
+                    onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion &amp; Attachments">💬 Notes</button>
             `;
-            if (taskRawStatus === 'pending') {
-                if (isEmp && isAssignee) {
+            if (isEmp && isAssignee) {
+                if (taskRawStatus === 'pending') {
                     actionsHtml += `
                         <button type="button" class="btn btn-primary btn-accept-task" style="padding:4px 10px;font-size:0.78rem;background:#16a34a;border-color:#16a34a;color:#fff;font-weight:600;"
-                            onclick="handleAcceptTaskCard(event, '${escapeHtml(task.id)}')">✓ Accept Task</button>
+                            onclick="handleAcceptTaskCard(event, '${escapeHtml(task.id)}')">✓ Accept</button>
+                        <button type="button" class="btn btn-danger" style="padding:4px 8px;font-size:0.78rem;"
+                            onclick="openRejectModalHandler(event, '${escapeHtml(task.id)}', '${escapeHtml(task.title)}')">&#x2715; Reject</button>
                     `;
-                } else if (!isEmp) {
+                } else if (taskRawStatus === 'in-progress') {
                     actionsHtml += `
-                        <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
-                            onclick="editTaskHandler('${escapeHtml(task.id)}')">${editLabel}</button>
+                        <button type="button" class="btn btn-primary" style="padding:4px 10px;font-size:0.78rem;background:#16a34a;border-color:#16a34a;color:#fff;font-weight:600;"
+                            onclick="handleCompleteTaskCard(event, '${escapeHtml(task.id)}')">✓ Complete</button>
+                        <button type="button" class="btn btn-danger" style="padding:4px 8px;font-size:0.78rem;"
+                            onclick="openAbortModalHandler(event, '${escapeHtml(task.id)}', '${escapeHtml(task.title)}')">&#x2298; Abort</button>
                     `;
                 }
-            } else {
+                // locked statuses: no extra action buttons
+            } else if (!isEmp) {
                 actionsHtml += `
                     <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
                         onclick="editTaskHandler('${escapeHtml(task.id)}')">${editLabel}</button>
@@ -722,7 +788,9 @@ document.addEventListener('DOMContentLoaded', () => {
         'pending':     kanbanPending,
         'in-progress': kanbanInProgress,
         'completed':   kanbanCompleted,
-        'cancelled':   kanbanCancelled
+        'cancelled':   kanbanCancelled,
+        'rejected':    kanbanRejected,
+        'aborted':     kanbanAborted
     };
 
     function renderKanban() {
@@ -746,7 +814,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const counts = { 'pending': 0, 'in-progress': 0, 'completed': 0, 'cancelled': 0 };
+        const counts = { 'pending': 0, 'in-progress': 0, 'completed': 0, 'cancelled': 0, 'rejected': 0, 'aborted': 0 };
 
         // Kanban respects all active filters (including status filter)
         const tasks = getFilteredTasks();
@@ -777,38 +845,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             const isPending = (statusKey === 'pending');
+            const isLockedStatus = ['completed', 'rejected', 'aborted', 'cancelled'].includes(statusKey);
 
             const card = document.createElement('div');
             card.className  = 'kanban-card';
             // Disable drag-and-drop of pending cards for employees (they must accept it first)
-            card.draggable  = (isEmp && isPending) ? false : true;
+            // Also disable drag for locked statuses for employees
+            card.draggable  = (isEmp && (isPending || isLockedStatus)) ? false : true;
             card.setAttribute('data-id',     task.id);
             card.setAttribute('data-status', statusKey);
 
             let cardActionsHtml = `
                 <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
-                    onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion & Attachments">💬 Notes</button>
+                    onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion &amp; Attachments">💬 Notes</button>
             `;
 
-            if (isPending) {
-                if (isEmp && isAssignee) {
+            if (isEmp && isAssignee) {
+                if (statusKey === 'pending') {
                     cardActionsHtml += `
                         <button type="button" class="btn btn-primary btn-accept-task" style="font-size:0.75rem;padding:3px 10px;background:#16a34a;border-color:#16a34a;color:#fff;font-weight:600;"
-                            onclick="handleAcceptTaskCard(event, '${escapeHtml(task.id)}')">✓ Accept Task</button>
+                            onclick="handleAcceptTaskCard(event, '${escapeHtml(task.id)}')">✓ Accept</button>
+                        <button type="button" class="btn btn-danger" style="font-size:0.75rem;padding:3px 8px;"
+                            onclick="openRejectModalHandler(event, '${escapeHtml(task.id)}', '${escapeHtml(task.title)}')">&#x2715; Reject</button>
                     `;
-                } else if (!isEmp) {
+                } else if (statusKey === 'in-progress') {
                     cardActionsHtml += `
-                        <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
-                            onclick="editTaskHandler('${escapeHtml(task.id)}')">${editLabel}</button>
+                        <button type="button" class="btn btn-primary" style="font-size:0.75rem;padding:3px 10px;background:#16a34a;border-color:#16a34a;color:#fff;font-weight:600;"
+                            onclick="handleCompleteTaskCard(event, '${escapeHtml(task.id)}')">✓ Complete</button>
+                        <button type="button" class="btn btn-danger" style="font-size:0.75rem;padding:3px 8px;"
+                            onclick="openAbortModalHandler(event, '${escapeHtml(task.id)}', '${escapeHtml(task.title)}')">&#x2298; Abort</button>
                     `;
                 }
-            } else {
+                // locked statuses: no extra buttons
+            } else if (!isEmp) {
                 cardActionsHtml += `
                     <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
                         onclick="editTaskHandler('${escapeHtml(task.id)}')">${editLabel}</button>
                 `;
             }
-
             if (canDelete) {
                 cardActionsHtml += `
                     <button type="button" class="btn btn-danger" style="font-size:0.75rem;padding:3px 8px;"
@@ -859,6 +933,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (countInProgress) countInProgress.textContent = counts['in-progress'];
         if (countCompleted)  countCompleted.textContent  = counts['completed'];
         if (countCancelled)  countCancelled.textContent  = counts['cancelled'];
+        if (countRejected)   countRejected.textContent   = counts['rejected'];
+        if (countAborted)    countAborted.textContent    = counts['aborted'];
 
         // Show placeholder in empty columns
         Object.entries(KANBAN_CONTAINERS).forEach(([, cont]) => {
@@ -912,12 +988,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Transition rules for employees
             if (isEmp) {
+                const lockedStatuses = ['completed', 'rejected', 'aborted', 'cancelled'];
+                if (lockedStatuses.includes(oldStatus)) {
+                    alert('This task is locked and cannot be moved.');
+                    return;
+                }
                 if (oldStatus === 'pending') {
                     alert('Pending tasks must be accepted first before status can be changed.');
                     return;
                 }
-                if (targetStatus === 'pending') {
-                    alert('Cannot move tasks backwards to pending.');
+                if (['pending', 'rejected', 'aborted'].includes(targetStatus)) {
+                    alert('Cannot drag tasks into that column. Use the action buttons instead.');
                     return;
                 }
                 if (targetStatus === 'cancelled') {
@@ -926,10 +1007,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (oldStatus === 'in-progress' && targetStatus !== 'completed') {
                     alert('From In Progress, you can only move tasks to Completed.');
-                    return;
-                }
-                if (oldStatus === 'completed') {
-                    alert('Completed tasks cannot be moved backwards.');
                     return;
                 }
             }
@@ -1027,6 +1104,165 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Handle Complete Task Card (in-progress -> completed)
+    // ─────────────────────────────────────────────────────────────────────────
+    window.handleCompleteTaskCard = async function(e, taskId) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        if (!confirm('Are you sure you want to mark this task as completed?')) return;
+        const btn = e?.currentTarget || e?.target;
+        if (btn) { btn.disabled = true; btn.textContent = 'Completing…'; }
+
+        try {
+            if (typeof completeTask === 'function') {
+                await completeTask(taskId);
+            } else {
+                const res = await apiRequest(`/tasks/${taskId}/complete/`, { method: 'PATCH' });
+                if (!res.ok) throw new Error(res.data?.message || 'Failed to complete task');
+            }
+            const tasks = getTasks();
+            const idx = tasks.findIndex(t => String(t.id) === String(taskId));
+            if (idx !== -1) {
+                tasks[idx].status = 'completed';
+                tasks[idx].completedAt = new Date().toISOString();
+                saveTasks(tasks);
+            }
+            renderTasks();
+            showToast('Task marked as Completed! 🎉');
+            if (typeof fetchTasksFromAPI === 'function') {
+                try { await fetchTasksFromAPI(); renderTasks(); } catch (_) {}
+            }
+        } catch (err) {
+            alert('Could not complete task: ' + (err.message || err));
+            if (btn) { btn.disabled = false; btn.textContent = '✓ Complete'; }
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Open Reject / Abort Modal Handlers
+    // ─────────────────────────────────────────────────────────────────────────
+    function openReasonModal(action, taskId, taskTitle) {
+        currentReasonAction = action;
+        currentReasonTaskId = taskId;
+        const isReject = action === 'reject';
+        if (statusReasonModalTitle) statusReasonModalTitle.textContent = isReject ? 'Reject Task' : 'Abort Task';
+        if (statusReasonModalDesc)  statusReasonModalDesc.textContent  = `Reason for ${isReject ? 'rejecting' : 'aborting'}: "${taskTitle}"`;
+        if (statusReasonInput)      { statusReasonInput.value = ''; }
+        if (statusReasonError)      statusReasonError.textContent = '';
+        if (confirmStatusReasonBtn) confirmStatusReasonBtn.disabled = true;
+        if (statusReasonModal) {
+            statusReasonModal.hidden = false;
+            statusReasonModal.removeAttribute('hidden');
+            statusReasonModal.style.display = 'flex';
+            if (statusReasonInput) statusReasonInput.focus();
+        }
+    }
+
+    window.openRejectModalHandler = function(e, taskId, taskTitle) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        openReasonModal('reject', taskId, taskTitle);
+    };
+
+    window.openAbortModalHandler = function(e, taskId, taskTitle) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        openReasonModal('abort', taskId, taskTitle);
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Status Reason Modal: Wire up events
+    // ─────────────────────────────────────────────────────────────────────────
+    function closeStatusReasonModal() {
+        currentReasonAction = null;
+        currentReasonTaskId = null;
+        if (statusReasonInput)      statusReasonInput.value = '';
+        if (statusReasonError)      statusReasonError.textContent = '';
+        if (confirmStatusReasonBtn) confirmStatusReasonBtn.disabled = true;
+        if (statusReasonModal) {
+            statusReasonModal.hidden = true;
+            statusReasonModal.setAttribute('hidden', '');
+            statusReasonModal.style.display = 'none';
+        }
+    }
+
+    if (statusReasonInput) {
+        statusReasonInput.addEventListener('input', () => {
+            const len = statusReasonInput.value.trim().length;
+            if (statusReasonError) {
+                statusReasonError.textContent = len < 10 ? `At least 10 characters required (${len}/10).` : '';
+            }
+            if (confirmStatusReasonBtn) confirmStatusReasonBtn.disabled = (len < 10);
+        });
+    }
+
+    if (cancelStatusReasonBtn) {
+        cancelStatusReasonBtn.addEventListener('click', closeStatusReasonModal);
+    }
+
+    if (statusReasonModal) {
+        statusReasonModal.addEventListener('click', (e) => {
+            if (e.target === statusReasonModal) closeStatusReasonModal();
+        });
+    }
+
+    if (confirmStatusReasonBtn) {
+        confirmStatusReasonBtn.addEventListener('click', async () => {
+            const reason = statusReasonInput ? statusReasonInput.value.trim() : '';
+            if (!reason || reason.length < 10) {
+                if (statusReasonError) statusReasonError.textContent = 'Reason must be at least 10 characters.';
+                return;
+            }
+            const action = currentReasonAction;
+            const taskId = currentReasonTaskId;
+            if (!action || !taskId) return;
+
+            confirmStatusReasonBtn.disabled = true;
+            const origText = confirmStatusReasonBtn.textContent;
+            confirmStatusReasonBtn.textContent = action === 'reject' ? 'Rejecting…' : 'Aborting…';
+
+            try {
+                const endpoint = action === 'reject' ? 'reject' : 'abort';
+                let apiOk = false;
+                if (action === 'reject' && typeof rejectTask === 'function') {
+                    await rejectTask(taskId, reason); apiOk = true;
+                } else if (action === 'abort' && typeof abortTask === 'function') {
+                    await abortTask(taskId, reason); apiOk = true;
+                } else {
+                    const res = await apiRequest(`/tasks/${taskId}/${endpoint}/`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ reason })
+                    });
+                    if (!res.ok) throw new Error(res.data?.message || `Failed to ${endpoint} task`);
+                    apiOk = true;
+                }
+
+                if (apiOk) {
+                    const newStatus = action === 'reject' ? 'rejected' : 'aborted';
+                    const tasks = getTasks();
+                    const idx = tasks.findIndex(t => String(t.id) === String(taskId));
+                    if (idx !== -1) {
+                        tasks[idx].status = newStatus;
+                        tasks[idx].statusReason = reason;
+                        if (action === 'reject') tasks[idx].rejectedAt = new Date().toISOString();
+                        else                    tasks[idx].abortedAt  = new Date().toISOString();
+                        saveTasks(tasks);
+                    }
+                    closeStatusReasonModal();
+                    renderTasks();
+                    const msg = action === 'reject' ? 'Task rejected. Manager notified.' : 'Task aborted. Manager notified.';
+                    showToast(msg);
+                    if (typeof fetchTasksFromAPI === 'function') {
+                        try { await fetchTasksFromAPI(); renderTasks(); } catch (_) {}
+                    }
+                }
+            } catch (err) {
+                alert(`Could not ${action} task: ` + (err.message || err));
+                confirmStatusReasonBtn.disabled = false;
+                confirmStatusReasonBtn.textContent = origText;
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // 12. Badge Helpers
     // ─────────────────────────────────────────────────────────────────────────
     function getPriorityBadge(priority = '') {
@@ -1038,16 +1274,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getStatusBadge(status = '') {
-        const s = status.toLowerCase();
-        let cls   = 'badge-warning';
+        const s = (status || '').toLowerCase().replace('_', '-');
+        let cls = 'badge-warning';
         let label = 'Pending';
-        if (s === 'in-progress' || s === 'in progress') { cls = 'badge-info';    label = 'In Progress'; }
-        else if (s === 'completed')                      { cls = 'badge-success'; label = 'Completed'; }
-        else if (s === 'cancelled')                      { cls = 'badge-danger';  label = 'Cancelled'; }
-        else if (s === 'rejected')                       { cls = 'badge-danger';  label = 'Rejected'; }
-
         let extraStyle = '';
-        if (s === 'pending') {
+        if (s === 'in-progress' || s === 'in progress') {
+            cls = 'badge-info'; label = 'In Progress';
+        } else if (s === 'completed') {
+            cls = 'badge-success'; label = 'Completed';
+        } else if (s === 'cancelled') {
+            cls = 'badge-danger'; label = 'Cancelled';
+        } else if (s === 'rejected') {
+            cls = 'badge-danger'; label = 'Rejected';
+            extraStyle = 'background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;';
+        } else if (s === 'aborted') {
+            cls = 'badge-warning'; label = 'Aborted';
+            extraStyle = 'background:#FED7AA;color:#9A3412;border:1px solid #FDBA74;font-weight:600;';
+        } else {
+            // pending
             extraStyle = 'background:#FEF08A;color:#854D0E;border:1px solid #FDE047;font-weight:600;';
         }
         return `<span class="badge ${cls}" style="${extraStyle}">${escapeHtml(label)}</span>`;

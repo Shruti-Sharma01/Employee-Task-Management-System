@@ -53,6 +53,7 @@ class Task(models.Model):
         COMPLETED = "COMPLETED", "Completed"
         CANCELLED = "CANCELLED", "Cancelled"
         REJECTED = "REJECTED", "Rejected"
+        ABORTED = "ABORTED", "Aborted"
 
     title = models.CharField(
         max_length=200
@@ -88,6 +89,11 @@ class Task(models.Model):
         default=Status.PENDING,
     )
 
+    status_reason = models.TextField(
+        blank=True,
+        default="",
+    )
+
     category = models.CharField(
         max_length=50,
         default="development",
@@ -110,6 +116,16 @@ class Task(models.Model):
     )
 
     completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    rejected_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    aborted_at = models.DateTimeField(
         null=True,
         blank=True,
     )
@@ -147,8 +163,8 @@ class Task(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        Keep completed_at correct no matter where the change
-        comes from (API, admin, shell).
+        Keep completed_at, rejected_at, and aborted_at correct
+        no matter where the change comes from (API, admin, shell).
         """
 
         if (
@@ -159,6 +175,24 @@ class Task(models.Model):
 
         elif self.status != self.Status.COMPLETED:
             self.completed_at = None
+
+        if (
+            self.status == self.Status.REJECTED
+            and self.rejected_at is None
+        ):
+            self.rejected_at = timezone.now()
+
+        elif self.status != self.Status.REJECTED:
+            self.rejected_at = None
+
+        if (
+            self.status == self.Status.ABORTED
+            and self.aborted_at is None
+        ):
+            self.aborted_at = timezone.now()
+
+        elif self.status != self.Status.ABORTED:
+            self.aborted_at = None
 
         super().save(*args, **kwargs)
 

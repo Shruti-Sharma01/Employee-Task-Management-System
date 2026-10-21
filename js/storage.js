@@ -19,6 +19,11 @@ function normalizeTask(apiTask) {
         category: (apiTask.category || 'development').toLowerCase(),
         dueDate: apiTask.deadline || '',
         status: (apiTask.status || 'pending').toLowerCase().replace('_', '-'),
+        statusReason: apiTask.status_reason || '',
+        acceptedAt: apiTask.accepted_at || null,
+        completedAt: apiTask.completed_at || null,
+        rejectedAt: apiTask.rejected_at || null,
+        abortedAt: apiTask.aborted_at || null,
         createdAt: apiTask.created_at || new Date().toISOString(),
         assignedTo: apiTask.assigned_to,
         assignedBy: apiTask.assigned_by
@@ -252,7 +257,7 @@ async function acceptTask(id) {
 async function rejectTask(id, reason = '') {
     if (typeof apiRequest === 'function') {
         const response = await apiRequest(`/tasks/${id}/reject/`, {
-            method: 'POST',
+            method: 'PATCH',
             body: JSON.stringify({ reason: reason || '' })
         });
         if (response.ok && response.data) {
@@ -269,7 +274,36 @@ async function rejectTask(id, reason = '') {
             throw new Error(msg);
         }
     }
-    return updateTask(id, { status: 'rejected' });
+    return updateTask(id, { status: 'rejected', statusReason: reason });
+}
+
+/**
+ * Abort task (moves from IN_PROGRESS to ABORTED)
+ * @param {string|number} id
+ * @param {string} reason
+ * @returns {Promise<Object>}
+ */
+async function abortTask(id, reason = '') {
+    if (typeof apiRequest === 'function') {
+        const response = await apiRequest(`/tasks/${id}/abort/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ reason: reason || '' })
+        });
+        if (response.ok && response.data) {
+            const updated = normalizeTask(response.data.data || response.data);
+            const tasks = getTasks();
+            const index = tasks.findIndex(t => String(t.id) === String(id));
+            if (index !== -1) {
+                tasks[index] = updated;
+                saveTasks(tasks);
+            }
+            return updated;
+        } else {
+            const msg = response.data?.message || response.data?.detail || 'Failed to abort task';
+            throw new Error(msg);
+        }
+    }
+    return updateTask(id, { status: 'aborted', statusReason: reason });
 }
 
 /**
@@ -280,7 +314,7 @@ async function rejectTask(id, reason = '') {
 async function completeTask(id) {
     if (typeof apiRequest === 'function') {
         const response = await apiRequest(`/tasks/${id}/complete/`, {
-            method: 'POST'
+            method: 'PATCH'
         });
         if (response.ok && response.data) {
             const updated = normalizeTask(response.data.data || response.data);

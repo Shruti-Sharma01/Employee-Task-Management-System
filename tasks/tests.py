@@ -549,3 +549,119 @@ class TaskWorkflowTests(TestCase):
         resp = auth_client(self.emp1_user).get(f"/api/tasks/{task.pk}/")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data["data"]["status"], "PENDING")
+
+    def test_reject_with_reason(self):
+        task = make_task("Reject Task", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.PENDING)
+        resp = auth_client(self.emp1_user).patch(
+            f"/api/tasks/{task.pk}/reject/",
+            {"reason": "Not enough bandwidth for this task"},
+            format="json"
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.REJECTED)
+        self.assertEqual(task.status_reason, "Not enough bandwidth for this task")
+        self.assertIsNotNone(task.rejected_at)
+        notif = Notification.objects.filter(
+            user=self.manager_user,
+            message__icontains="Not enough bandwidth"
+        ).first()
+        self.assertIsNotNone(notif)
+
+    def test_reject_without_reason_returns_400(self):
+        task = make_task("Reject No Reason", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.PENDING)
+        resp1 = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/reject/", {}, format="json")
+        self.assertEqual(resp1.status_code, status.HTTP_400_BAD_REQUEST)
+        resp2 = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/reject/", {"reason": "short"}, format="json")
+        self.assertEqual(resp2.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reject_after_accept_returns_400(self):
+        task = make_task("Reject After Accept", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.IN_PROGRESS)
+        resp = auth_client(self.emp1_user).patch(
+            f"/api/tasks/{task.pk}/reject/",
+            {"reason": "Cannot reject once accepted and in progress"},
+            format="json"
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_abort_with_reason(self):
+        task = make_task("Abort Task", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.IN_PROGRESS)
+        resp = auth_client(self.emp1_user).patch(
+            f"/api/tasks/{task.pk}/abort/",
+            {"reason": "Blocked by external system outage"},
+            format="json"
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.ABORTED)
+        self.assertEqual(task.status_reason, "Blocked by external system outage")
+        self.assertIsNotNone(task.aborted_at)
+        notif = Notification.objects.filter(
+            user=self.manager_user,
+            message__icontains="Blocked by external system outage"
+        ).first()
+        self.assertIsNotNone(notif)
+
+    def test_abort_without_reason_returns_400(self):
+        task = make_task("Abort No Reason", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.IN_PROGRESS)
+        resp1 = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/abort/", {}, format="json")
+        self.assertEqual(resp1.status_code, status.HTTP_400_BAD_REQUEST)
+        resp2 = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/abort/", {"reason": "too short"}, format="json")
+        self.assertEqual(resp2.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_abort_on_pending_returns_400(self):
+        task = make_task("Abort Pending", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.PENDING)
+        resp = auth_client(self.emp1_user).patch(
+            f"/api/tasks/{task.pk}/abort/",
+            {"reason": "Trying to abort pending task"},
+            format="json"
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_completed_task_locked(self):
+        task = make_task("Completed Locked", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.COMPLETED)
+        # Attempt generic update
+        resp1 = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/", {"status": "IN_PROGRESS"}, format="json")
+        self.assertEqual(resp1.status_code, status.HTTP_400_BAD_REQUEST)
+        # Attempt accept
+        resp2 = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/accept/")
+        self.assertEqual(resp2.status_code, status.HTTP_400_BAD_REQUEST)
+        # Attempt reject
+        resp3 = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/reject/", {"reason": "Reason for reject with enough chars"}, format="json")
+        self.assertEqual(resp3.status_code, status.HTTP_400_BAD_REQUEST)
+        # Attempt abort
+        resp4 = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/abort/", {"reason": "Reason for abort with enough chars"}, format="json")
+        self.assertEqual(resp4.status_code, status.HTTP_400_BAD_REQUEST)
+        # Attempt complete
+        resp5 = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/complete/")
+        self.assertEqual(resp5.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_employee_cannot_set_rejected_or_cancelled_via_normal_update(self):
+        task = make_task("In Progress Task", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.IN_PROGRESS)
+        # Cannot set REJECTED via normal update
+        resp1 = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/", {"status": "REJECTED"}, format="json")
+        self.assertEqual(resp1.status_code, status.HTTP_400_BAD_REQUEST)
+        # Cannot set CANCELLED via normal update
+        resp2 = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/", {"status": "CANCELLED"}, format="json")
+        self.assertEqual(resp2.status_code, status.HTTP_400_BAD_REQUEST)
+        # Cannot set ABORTED via normal update
+        resp3 = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/", {"status": "ABORTED"}, format="json")
+        self.assertEqual(resp3.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_other_employee_gets_403(self):
+        pending_task = make_task("Emp1 Pending", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.PENDING)
+        in_progress_task = make_task("Emp1 Progress", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.IN_PROGRESS)
+        # emp2 attempts to reject emp1's task -> 403
+        resp1 = auth_client(self.emp2_user).patch(
+            f"/api/tasks/{pending_task.pk}/reject/",
+            {"reason": "Not my task to reject here"},
+            format="json"
+        )
+        self.assertEqual(resp1.status_code, status.HTTP_403_FORBIDDEN)
+        # emp2 attempts to abort emp1's task -> 403
+        resp2 = auth_client(self.emp2_user).patch(
+            f"/api/tasks/{in_progress_task.pk}/abort/",
+            {"reason": "Not my task to abort here"},
+            format="json"
+        )
+        self.assertEqual(resp2.status_code, status.HTTP_403_FORBIDDEN)

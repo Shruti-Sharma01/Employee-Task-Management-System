@@ -549,17 +549,11 @@ html {
 /* Kanban Board Container */
 .kanban-container {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
     align-items: start;
     margin-top: var(--space-lg);
     min-height: 480px;
-}
-
-@media (max-width: 1200px) {
-    .kanban-container {
-        grid-template-columns: repeat(2, 1fr);
-    }
 }
 
 @media (max-width: 768px) {
@@ -631,11 +625,15 @@ html {
 .dot-inprogress { background-color: #0038DE; }
 .dot-completed  { background-color: #10B981; }
 .dot-cancelled  { background-color: #94A3B8; }
+.dot-rejected   { background-color: #EF4444; }
+.dot-aborted    { background-color: #F97316; }
 
 .header-pending    { border-bottom-color: #FDE68A; }
 .header-inprogress { border-bottom-color: #BFDBFE; }
 .header-completed  { border-bottom-color: #A7F3D0; }
 .header-cancelled  { border-bottom-color: #E2E8F0; }
+.header-rejected   { border-bottom-color: #FECACA; }
+.header-aborted    { border-bottom-color: #FED7AA; }
 
 /* Cards Wrapper */
 .kanban-cards-wrapper {
