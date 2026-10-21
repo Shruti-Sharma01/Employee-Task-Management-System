@@ -224,7 +224,7 @@ async function updateTask(id, updatedFields) {
 async function acceptTask(id) {
     if (typeof apiRequest === 'function') {
         const response = await apiRequest(`/tasks/${id}/accept/`, {
-            method: 'POST'
+            method: 'PATCH'
         });
         if (response.ok && response.data) {
             const updated = normalizeTask(response.data.data || response.data);

@@ -242,12 +242,12 @@ class TaskListCreateViewTest(TestCase):
         resp = auth_client(self.mgr_user).post(self.URL, payload, format="json")
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_employee_cannot_assign_task_to_another_employee(self):
+    def test_employee_cannot_create_task(self):
         other_user = make_user("other_emp", "other_emp@test.com")
         other_emp = make_employee(other_user, "EMP8888")
         payload = {"title": "Sneaky Task", "assigned_to": other_emp.pk}
         resp = auth_client(self.emp_user).post(self.URL, payload, format="json")
-        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
 
 
 # ---------------------------------------------------------------------------
@@ -324,12 +324,14 @@ class TaskDetailViewTest(TestCase):
         self.assertEqual(self.task.title, "Updated Title")
 
     def test_employee_can_update_status_only(self):
+        self.task.status = Task.Status.IN_PROGRESS
+        self.task.save()
         resp = auth_client(self.emp_user).patch(
-            self.task_url, {"status": "IN_PROGRESS"}, format="json"
+            self.task_url, {"status": "COMPLETED"}, format="json"
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.task.refresh_from_db()
-        self.assertEqual(self.task.status, Task.Status.IN_PROGRESS)
+        self.assertEqual(self.task.status, Task.Status.COMPLETED)
 
     def test_employee_cannot_update_title(self):
         resp = auth_client(self.emp_user).patch(
@@ -468,3 +470,82 @@ class TaskSignalTest(TestCase):
             notification_type=Notification.NotificationType.TASK_REASSIGNED,
         ).first()
         self.assertIsNotNone(notif)
+
+
+# ---------------------------------------------------------------------------
+# Acceptance Criteria: Task Workflow Tests
+# ---------------------------------------------------------------------------
+
+class TaskWorkflowTests(TestCase):
+
+    def setUp(self):
+        self.manager_user = make_user("wf_mgr", "wf_mgr@test.com", role=User.Role.MANAGER)
+        self.manager_emp = make_employee(self.manager_user, "EMP_MGR1", designation="Manager")
+
+        self.emp1_user = make_user("wf_emp1", "wf_emp1@test.com", role=User.Role.EMPLOYEE)
+        self.emp1 = make_employee(self.emp1_user, "EMP_WF1", manager=self.manager_emp)
+
+        self.emp2_user = make_user("wf_emp2", "wf_emp2@test.com", role=User.Role.EMPLOYEE)
+        self.emp2 = make_employee(self.emp2_user, "EMP_WF2", manager=self.manager_emp)
+
+    def test_1_employee_cannot_create_task(self):
+        payload = {"title": "Employee Task", "assigned_to": self.emp1.pk}
+        resp = auth_client(self.emp1_user).post("/api/tasks/", payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_2_manager_assigns_task_starts_pending_and_notifies(self):
+        payload = {
+            "title": "Manager Assigned Task",
+            "assigned_to": self.emp1.pk,
+            "status": "COMPLETED",  # Should be ignored and forced to PENDING
+        }
+        resp = auth_client(self.manager_user).post("/api/tasks/", payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        task_id = resp.data["data"]["id"]
+        task = Task.objects.get(pk=task_id)
+        self.assertEqual(task.status, Task.Status.PENDING)
+        self.assertIsNone(task.accepted_at)
+
+        # Employee gets notification
+        notif = Notification.objects.filter(
+            user=self.emp1_user,
+            notification_type=Notification.NotificationType.TASK_ASSIGNED,
+        ).first()
+        self.assertIsNotNone(notif)
+        self.assertIn("Manager Assigned Task", notif.message)
+
+    def test_3_employee_accept_flow(self):
+        task = make_task("To Accept", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.PENDING)
+        resp = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/accept/")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.IN_PROGRESS)
+        self.assertIsNotNone(task.accepted_at)
+
+        # Manager gets notification
+        notif = Notification.objects.filter(
+            user=self.manager_user,
+            message__icontains="accepted the task",
+        ).first()
+        self.assertIsNotNone(notif)
+
+    def test_4_setting_pending_task_directly_to_completed_returns_400(self):
+        task = make_task("Direct Complete", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.PENDING)
+        resp = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/", {"status": "COMPLETED"}, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_5_different_employee_accept_returns_403(self):
+        task = make_task("Emp1 Task", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.PENDING)
+        resp = auth_client(self.emp2_user).patch(f"/api/tasks/{task.pk}/accept/")
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_6_accepting_already_accepted_task_returns_400(self):
+        task = make_task("Already Accepted", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.IN_PROGRESS)
+        resp = auth_client(self.emp1_user).patch(f"/api/tasks/{task.pk}/accept/")
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_7_legacy_todo_tasks_are_pending(self):
+        task = make_task("Pending Legacy Task", assigned_to=self.emp1, assigned_by=self.manager_user, status=Task.Status.PENDING)
+        resp = auth_client(self.emp1_user).get(f"/api/tasks/{task.pk}/")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["data"]["status"], "PENDING")

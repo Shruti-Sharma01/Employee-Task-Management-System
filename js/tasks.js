@@ -88,9 +88,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 2b. Load Employees into "Assign To" dropdown (Admin/Manager only)
+    // 2b. Role Enforcement: Employees cannot create tasks
     // ─────────────────────────────────────────────────────────────────────────
     const role = (typeof getRole === 'function') ? getRole() : 'EMPLOYEE';
+
+    // Hide Add Task button for employees
+    if (openAddTaskBtn && role === 'EMPLOYEE') {
+        openAddTaskBtn.style.display = 'none';
+    }
 
     // EMPLOYEE cannot assign — hide the dropdown entirely
     if (assignToGroup) {
@@ -136,19 +141,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. Form Open / Close / Reset
     // ─────────────────────────────────────────────────────────────────────────
     function openAddForm() {
+        const currentRole = (typeof getRole === 'function') ? getRole() : (window._userRole || 'EMPLOYEE');
+        if (currentRole === 'EMPLOYEE') {
+            alert('Employees are not permitted to create tasks. Tasks are assigned by Managers or Admins.');
+            window.location.replace('dashboard.html');
+            return;
+        }
+
         resetForm();
         formHeading.textContent = 'Add New Task';
 
-        const currentRole = (typeof getRole === 'function') ? getRole() : (window._userRole || 'EMPLOYEE');
         if (assignToGroup) {
-            assignToGroup.style.display = (currentRole === 'EMPLOYEE') ? 'none' : 'block';
+            assignToGroup.style.display = 'block';
         }
         if (taskAssignToInput) {
             taskAssignToInput.value = '';
         }
-        if (currentRole !== 'EMPLOYEE') {
-            loadEmployeeOptions();   // fetch fresh employee list for Admin/Manager
-        }
+        loadEmployeeOptions();   // fetch fresh employee list for Admin/Manager
 
         // Enable all inputs for creating a new task
         [taskTitleInput, taskDescriptionInput, taskPriorityInput,
@@ -654,6 +663,35 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const taskRawStatus = (task.status || '').toLowerCase().replace('_', '-');
 
+            let actionsHtml = `
+                <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
+                    onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion & Attachments">💬 Notes</button>
+            `;
+            if (taskRawStatus === 'pending') {
+                if (isEmp && isAssignee) {
+                    actionsHtml += `
+                        <button type="button" class="btn btn-primary btn-accept-task" style="padding:4px 10px;font-size:0.78rem;background:#16a34a;border-color:#16a34a;color:#fff;font-weight:600;"
+                            onclick="handleAcceptTaskCard(event, '${escapeHtml(task.id)}')">✓ Accept Task</button>
+                    `;
+                } else if (!isEmp) {
+                    actionsHtml += `
+                        <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
+                            onclick="editTaskHandler('${escapeHtml(task.id)}')">${editLabel}</button>
+                    `;
+                }
+            } else {
+                actionsHtml += `
+                    <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
+                        onclick="editTaskHandler('${escapeHtml(task.id)}')">${editLabel}</button>
+                `;
+            }
+            if (canDelete) {
+                actionsHtml += `
+                    <button type="button" class="btn btn-danger" style="padding:4px 8px;font-size:0.78rem;"
+                        onclick="openDeleteModalHandler('${escapeHtml(task.id)}')">Delete</button>
+                `;
+            }
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>
@@ -670,14 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${getStatusBadge(task.status)}</td>
                 <td>
                     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                        <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
-                            onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion & Attachments">💬 Notes</button>
-                        <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
-                            onclick="editTaskHandler('${escapeHtml(task.id)}')">${editLabel}</button>
-                        ${canDelete ? `
-                        <button type="button" class="btn btn-danger" style="padding:4px 8px;font-size:0.78rem;"
-                            onclick="openDeleteModalHandler('${escapeHtml(task.id)}')">Delete</button>
-                        ` : ''}
+                        ${actionsHtml}
                     </div>
                 </td>`;
             tasksTableBody.appendChild(tr);
@@ -700,6 +731,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear all card wrappers
         Object.values(KANBAN_CONTAINERS).forEach(c => { if (c) c.innerHTML = ''; });
 
+        const currentRole = (typeof getRole === 'function') ? getRole() : (window._userRole || 'EMPLOYEE');
+        const isManagerOrAdmin = ['MANAGER', 'ADMIN'].includes(currentRole);
+
+        // Update column title and filter text for managers
+        const colTitle = document.querySelector('.header-pending h3');
+        if (colTitle) {
+            colTitle.textContent = isManagerOrAdmin ? 'Pending Acceptance' : 'Pending';
+        }
+        if (statusFilter) {
+            const pendingOpt = statusFilter.querySelector('option[value="pending"]');
+            if (pendingOpt) {
+                pendingOpt.textContent = isManagerOrAdmin ? 'Pending Acceptance' : 'Pending';
+            }
+        }
+
         const counts = { 'pending': 0, 'in-progress': 0, 'completed': 0, 'cancelled': 0 };
 
         // Kanban respects all active filters (including status filter)
@@ -710,14 +756,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const statusKey = KANBAN_CONTAINERS[rawStatus] ? rawStatus : 'pending';
             counts[statusKey]++;
 
-            const card = document.createElement('div');
-            card.className  = 'kanban-card';
-            card.draggable  = true;
-            card.setAttribute('data-id',     task.id);
-            card.setAttribute('data-status', statusKey);
-
             const currentUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
-            const currentRole = (typeof getRole === 'function') ? getRole() : (window._userRole || 'EMPLOYEE');
             const isEmp       = currentRole === 'EMPLOYEE';
             const isCreator   = currentUser && task.assignedBy && (String(currentUser.id) === String(task.assignedBy.id));
             const canDelete   = !isEmp || isCreator;
@@ -737,7 +776,45 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
-            const taskRawStatus = (task.status || '').toLowerCase().replace('_', '-');
+            const isPending = (statusKey === 'pending');
+
+            const card = document.createElement('div');
+            card.className  = 'kanban-card';
+            // Disable drag-and-drop of pending cards for employees (they must accept it first)
+            card.draggable  = (isEmp && isPending) ? false : true;
+            card.setAttribute('data-id',     task.id);
+            card.setAttribute('data-status', statusKey);
+
+            let cardActionsHtml = `
+                <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
+                    onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion & Attachments">💬 Notes</button>
+            `;
+
+            if (isPending) {
+                if (isEmp && isAssignee) {
+                    cardActionsHtml += `
+                        <button type="button" class="btn btn-primary btn-accept-task" style="font-size:0.75rem;padding:3px 10px;background:#16a34a;border-color:#16a34a;color:#fff;font-weight:600;"
+                            onclick="handleAcceptTaskCard(event, '${escapeHtml(task.id)}')">✓ Accept Task</button>
+                    `;
+                } else if (!isEmp) {
+                    cardActionsHtml += `
+                        <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
+                            onclick="editTaskHandler('${escapeHtml(task.id)}')">${editLabel}</button>
+                    `;
+                }
+            } else {
+                cardActionsHtml += `
+                    <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
+                        onclick="editTaskHandler('${escapeHtml(task.id)}')">${editLabel}</button>
+                `;
+            }
+
+            if (canDelete) {
+                cardActionsHtml += `
+                    <button type="button" class="btn btn-danger" style="font-size:0.75rem;padding:3px 8px;"
+                        onclick="openDeleteModalHandler('${escapeHtml(task.id)}')">Delete</button>
+                `;
+            }
 
             card.innerHTML = `
                 <div class="kanban-card-title" onclick="openTaskDrawer('${escapeHtml(task.id)}')" 
@@ -749,23 +826,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="kanban-card-meta">
                     <span class="kanban-card-category">${escapeHtml(capitalize(task.category || 'General'))}</span>
                     <span>${getPriorityBadge(task.priority)}</span>
+                    ${isPending ? `<span class="badge badge-warning" style="background:#FEF08A;color:#854D0E;border:1px solid #FDE047;font-size:0.68rem;padding:2px 6px;font-weight:600;">Pending</span>` : ''}
                 </div>
                 <div class="kanban-card-meta" style="border-top:none;padding-top:4px;">
                     <span title="Due Date">📅 ${escapeHtml(task.dueDate || 'No due date')}</span>
                 </div>
                 <div class="kanban-card-actions">
-                    <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
-                        onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion & Attachments">💬 Notes</button>
-                    <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
-                        onclick="editTaskHandler('${escapeHtml(task.id)}')">${editLabel}</button>
-                    ${canDelete ? `
-                    <button type="button" class="btn btn-danger" style="font-size:0.75rem;padding:3px 8px;"
-                        onclick="openDeleteModalHandler('${escapeHtml(task.id)}')">Delete</button>
-                    ` : ''}
+                    ${cardActionsHtml}
                 </div>`;
 
             // Drag events
             card.addEventListener('dragstart', function (e) {
+                if (isEmp && this.getAttribute('data-status') === 'pending') {
+                    e.preventDefault();
+                    return false;
+                }
                 draggedTaskId = this.getAttribute('data-id');
                 this.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
@@ -809,7 +884,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         column.addEventListener('dragleave', (e) => {
-            // Only remove highlight when truly leaving the column (not entering a child)
             if (!column.contains(e.relatedTarget)) {
                 column.classList.remove('drag-over');
             }
@@ -833,22 +907,48 @@ document.addEventListener('DOMContentLoaded', () => {
             const oldStatus   = (tasks[taskIndex].status || 'pending').toLowerCase().replace('_', '-');
             if (oldStatus === targetStatus) return;   // no change
 
+            const currentRole = (typeof getRole === 'function') ? getRole() : (window._userRole || 'EMPLOYEE');
+            const isEmp       = currentRole === 'EMPLOYEE';
+
+            // Transition rules for employees
+            if (isEmp) {
+                if (oldStatus === 'pending') {
+                    alert('Pending tasks must be accepted first before status can be changed.');
+                    return;
+                }
+                if (targetStatus === 'pending') {
+                    alert('Cannot move tasks backwards to pending.');
+                    return;
+                }
+                if (targetStatus === 'cancelled') {
+                    alert('Only managers and admins can cancel a task.');
+                    return;
+                }
+                if (oldStatus === 'in-progress' && targetStatus !== 'completed') {
+                    alert('From In Progress, you can only move tasks to Completed.');
+                    return;
+                }
+                if (oldStatus === 'completed') {
+                    alert('Completed tasks cannot be moved backwards.');
+                    return;
+                }
+            }
+
             // ── Optimistic update directly in cache ──
             tasks[taskIndex].status = targetStatus;
             saveTasks(tasks);           // persist to localStorage immediately
             renderKanban();             // re-render with new position
 
-            // ── Persist to PostgreSQL ──
+            // ── Persist to Backend ──
             try {
                 await updateTask(taskId, { status: targetStatus });
-                // After backend confirms, re-fetch for consistency
                 if (typeof fetchTasksFromAPI === 'function') {
                     await fetchTasksFromAPI();
                     renderKanban();
                 }
             } catch (err) {
                 console.error('[Kanban] Status update failed:', err);
-                alert('Could not update task status in database. Reverting.');
+                alert('Could not update task status: ' + (err.message || err) + '. Reverting.');
                 // Revert in cache
                 tasks[taskIndex].status = oldStatus;
                 saveTasks(tasks);
@@ -856,6 +956,75 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Toast Notification Helper
+    // ─────────────────────────────────────────────────────────────────────────
+    function showToast(message) {
+        let toast = document.getElementById('etmsToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'etmsToast';
+            toast.style.cssText = `
+                position: fixed; bottom: 24px; right: 24px; z-index: 99999;
+                background: #1e3a5f; color: #fff; padding: 12px 20px;
+                border-radius: 8px; font-size: 0.9rem; font-weight: 600;
+                box-shadow: 0 4px 16px rgba(0,0,0,0.25); transition: opacity 0.3s ease;
+                display: flex; align-items: center; gap: 8px;
+            `;
+            document.body.appendChild(toast);
+        }
+        toast.textContent = message;
+        toast.style.opacity = '1';
+        toast.style.display = 'flex';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 3000);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Handle Accept Task Card (moves from Pending to In Progress immediately)
+    // ─────────────────────────────────────────────────────────────────────────
+    window.handleAcceptTaskCard = async function(e, taskId) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        const btn = e?.currentTarget || e?.target;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Accepting…';
+        }
+
+        try {
+            if (typeof acceptTask === 'function') {
+                await acceptTask(taskId);
+            } else {
+                const res = await apiRequest(`/tasks/${taskId}/accept/`, { method: 'PATCH' });
+                if (!res.ok) throw new Error(res.data?.message || 'Failed to accept task');
+            }
+
+            // Immediately move from pending to in-progress in cache
+            const tasks = getTasks();
+            const idx = tasks.findIndex(t => String(t.id) === String(taskId));
+            if (idx !== -1) {
+                tasks[idx].status = 'in-progress';
+                tasks[idx].acceptedAt = new Date().toISOString();
+                saveTasks(tasks);
+            }
+
+            renderTasks();
+            showToast('Task accepted! Moved to In Progress. 🚀');
+
+            if (typeof fetchTasksFromAPI === 'function') {
+                try { await fetchTasksFromAPI(); renderTasks(); } catch (_) {}
+            }
+        } catch (err) {
+            alert('Could not accept task: ' + (err.message || err));
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '✓ Accept Task';
+            }
+        }
+    };
 
     // ─────────────────────────────────────────────────────────────────────────
     // 12. Badge Helpers
@@ -876,7 +1045,12 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (s === 'completed')                      { cls = 'badge-success'; label = 'Completed'; }
         else if (s === 'cancelled')                      { cls = 'badge-danger';  label = 'Cancelled'; }
         else if (s === 'rejected')                       { cls = 'badge-danger';  label = 'Rejected'; }
-        return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
+
+        let extraStyle = '';
+        if (s === 'pending') {
+            extraStyle = 'background:#FEF08A;color:#854D0E;border:1px solid #FDE047;font-weight:600;';
+        }
+        return `<span class="badge ${cls}" style="${extraStyle}">${escapeHtml(label)}</span>`;
     }
 
     function capitalize(str = '') {

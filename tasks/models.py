@@ -104,6 +104,11 @@ class Task(models.Model):
         blank=True,
     )
 
+    accepted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
     completed_at = models.DateTimeField(
         null=True,
         blank=True,

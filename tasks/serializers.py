@@ -17,7 +17,8 @@ class TaskSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             "id", "title", "description", "assigned_to", "assigned_by",
-            "priority", "status", "category", "start_date", "deadline", "completed_at",
+            "priority", "status", "category", "start_date", "deadline",
+            "accepted_at", "completed_at",
             "is_overdue", "created_at", "updated_at",
         ]
 
@@ -66,13 +67,11 @@ class TaskWriteSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and request.user:
             user = request.user
-            # EMPLOYEE can only assign tasks to themselves
+            # EMPLOYEE cannot assign tasks at all
             if user.role == User.Role.EMPLOYEE:
-                profile = getattr(user, "employee_profile", None)
-                if profile is None or employee.pk != profile.pk:
-                    raise serializers.ValidationError(
-                        "Employees can only assign tasks to themselves."
-                    )
+                raise serializers.ValidationError(
+                    "Employees are not permitted to create or assign tasks."
+                )
             elif user.role == User.Role.MANAGER:
                 profile = getattr(user, "employee_profile", None)
                 if profile is None:
@@ -96,10 +95,11 @@ class TaskWriteSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(
                         "Managers can only assign tasks to employees, not to other managers or admins."
                     )
-                # Link unassigned employee to this manager
-                if employee.manager is None and employee.pk != profile.pk:
-                    employee.manager = profile
-                    employee.save(update_fields=["manager"])
+                # Team check: employee must belong to this manager's team
+                if employee.manager_id != profile.pk:
+                    raise serializers.ValidationError(
+                        "You can only assign tasks to employees in your team."
+                    )
         return employee
 
     def validate(self, attrs):
@@ -111,6 +111,20 @@ class TaskWriteSerializer(serializers.ModelSerializer):
             if "assigned_to" not in attrs or attrs.get("assigned_to") is None:
                 raise serializers.ValidationError({"assigned_to": "Please select an employee to assign this task to."})
 
+        # Transition guards on update
+        if self.instance and "status" in attrs:
+            new_status = attrs["status"]
+            cur_status = self.instance.status
+            if cur_status == Task.Status.PENDING and new_status == Task.Status.COMPLETED:
+                raise serializers.ValidationError({"status": "Pending tasks must be accepted before they can be marked completed."})
+            if user and user.role == User.Role.EMPLOYEE:
+                if cur_status == Task.Status.PENDING and new_status != Task.Status.PENDING:
+                    raise serializers.ValidationError({"status": "Pending tasks must be accepted first before status can be changed."})
+                if new_status == Task.Status.PENDING and cur_status != Task.Status.PENDING:
+                    raise serializers.ValidationError({"status": "Cannot move task backwards to pending."})
+                if new_status == Task.Status.CANCELLED:
+                    raise serializers.ValidationError({"status": "Only managers and admins can cancel a task."})
+
         # On PATCH, fall back to the values already saved on the task.
         start = attrs.get("start_date", getattr(self.instance, "start_date", None))
         deadline = attrs.get("deadline", getattr(self.instance, "deadline", None))
@@ -119,27 +133,8 @@ class TaskWriteSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        request = self.context.get("request")
-        user = request.user if request else None
-        if user and ("assigned_to" not in validated_data or validated_data["assigned_to"] is None):
-            profile = getattr(user, "employee_profile", None)
-            if profile is None:
-                from employees.models import Employee
-                from django.utils import timezone
-                emp_id = f"EMP{user.id:04d}"
-                full_name = f"{user.first_name} {user.last_name}".strip() or user.username
-                profile, _ = Employee.objects.get_or_create(
-                    user=user,
-                    defaults={
-                        "employee_id": emp_id,
-                        "full_name": full_name,
-                        "email": user.email or f"{user.username}@company.com",
-                        "department": "General",
-                        "designation": user.role.capitalize(),
-                        "joining_date": timezone.localdate(),
-                    }
-                )
-            validated_data["assigned_to"] = profile
+        # Force status to PENDING on task creation
+        validated_data["status"] = Task.Status.PENDING
         return super().create(validated_data)
 
 
@@ -151,10 +146,33 @@ class TaskStatusSerializer(serializers.ModelSerializer):
         fields = ["status"]
 
     def validate_status(self, value):
+        cur_status = self.instance.status if self.instance else None
+        request = self.context.get("request")
+        user = request.user if request else None
+
+        # 1. pending -> can only change via the accept endpoint
+        if cur_status == Task.Status.PENDING:
+            raise serializers.ValidationError("Pending tasks must be accepted before status can be changed.")
+
+        # 2. Cannot move backwards to pending
+        if value == Task.Status.PENDING and cur_status != Task.Status.PENDING:
+            raise serializers.ValidationError("Cannot move task backwards to pending.")
+
+        # 3. Cancelled can only be set by manager/admin
         if value == Task.Status.CANCELLED:
-            raise serializers.ValidationError("Employees cannot cancel a task.")
-        if self.instance.status == Task.Status.CANCELLED:
+            raise serializers.ValidationError("Employees cannot cancel a task. Only managers and admins can cancel.")
+
+        if cur_status == Task.Status.CANCELLED:
             raise serializers.ValidationError("This task was cancelled and can't be changed.")
+
+        # 4. in_progress -> completed is allowed for assigned employee
+        if cur_status == Task.Status.IN_PROGRESS and value not in (Task.Status.IN_PROGRESS, Task.Status.COMPLETED):
+            raise serializers.ValidationError("From In Progress, you can only move the task to Completed.")
+
+        # 5. Completed cannot move backwards
+        if cur_status == Task.Status.COMPLETED and value != Task.Status.COMPLETED:
+            raise serializers.ValidationError("Completed tasks cannot be moved backwards.")
+
         return value
     
 class TaskCommentSerializer(serializers.ModelSerializer):

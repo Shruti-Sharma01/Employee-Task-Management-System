@@ -109,10 +109,10 @@
     function applyTasksPageRules() {
         const role = getRole();
 
-        // EMPLOYEE can add tasks (self-assigned), so keep Add Task button visible
+        // Only Manager and Admin can add tasks. Hide for Employee.
         const addBtn = document.getElementById('openAddTaskBtn');
         if (addBtn) {
-            addBtn.style.display = '';
+            addBtn.style.display = (role === 'EMPLOYEE') ? 'none' : '';
         }
 
         // We set role flag on window for tasks.js
@@ -158,7 +158,7 @@
                 color: '#27ae60',
                 bg:    'rgba(39,174,96,0.08)',
                 icon:  '👤',
-                text:  'You have <strong>Employee</strong> access — you can create your own tasks and manage their status.'
+                text:  'You have <strong>Employee</strong> access — view assigned tasks, accept them, update progress and upload attachments.'
             }
         };
 

@@ -79,9 +79,14 @@ class TaskListCreateView(BaseTaskListView):
     """GET /api/tasks/  and  POST /api/tasks/"""
 
     def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAuthenticated(), IsAdminOrManager()]
         return [IsAuthenticated()]
 
     def post(self, request, *args, **kwargs):
+        if request.user.role == User.Role.EMPLOYEE:
+            raise PermissionDenied("Employees are not permitted to create tasks.")
+
         serializer = TaskWriteSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         task = serializer.save(assigned_by=request.user)  # who created it is set to request.user
@@ -100,9 +105,7 @@ class TaskListCreateView(BaseTaskListView):
                 Notification.objects.create(
                     user=task.assigned_to.user,
                     title="New Task Assigned",
-                    message=f"You have been assigned a new task: \"{task.title}\" "
-                            f"by {request.user.get_full_name() or request.user.email}. "
-                            f"Deadline: {task.deadline or 'Not set'}.",
+                    message=f"You have been assigned a new task: {task.title}",
                     notification_type=Notification.NotificationType.TASK_ASSIGNED,
                 )
         except Exception:
@@ -166,11 +169,10 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         partial = kwargs.pop("partial", False)
         task = self.get_object()
 
-        is_creator = task.assigned_by_id == request.user.id
-        if request.user.role == User.Role.EMPLOYEE and not is_creator:
+        if request.user.role == User.Role.EMPLOYEE:
             if set(request.data.keys()) - {"status"}:
                 raise PermissionDenied("Employees can only update the task status.")
-            serializer = TaskStatusSerializer(task, data=request.data)
+            serializer = TaskStatusSerializer(task, data=request.data, context={"request": request})
         else:
             serializer = TaskWriteSerializer(
                 task, data=request.data, partial=partial, context={"request": request}
@@ -203,8 +205,9 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
             # Reassignment resets status to PENDING so new employee accepts it
             if task.status != Task.Status.PENDING:
                 task.status = Task.Status.PENDING
+                task.accepted_at = None
                 task.completed_at = None
-                task.save(update_fields=["status", "completed_at", "updated_at"])
+                task.save(update_fields=["status", "accepted_at", "completed_at", "updated_at"])
         if old_deadline != task.deadline:
             log_task_activity(
                 task, request.user, "DEADLINE_CHANGED",
@@ -421,35 +424,44 @@ class TaskActivityListView(generics.ListAPIView):
 
 class TaskAcceptView(generics.GenericAPIView):
     """
-    POST /api/tasks/<pk>/accept/
-    Allows the assigned employee (or manager/admin) to accept the task.
+    POST / PATCH /api/tasks/<pk>/accept/
+    Allows the assigned employee to accept the task.
     Automatically moves task status from PENDING to IN_PROGRESS.
     """
     permission_classes = [IsAuthenticated]
 
     def get_task(self):
-        return get_object_or_404(visible_tasks_for(self.request.user), pk=self.kwargs["pk"])
+        return get_object_or_404(Task.objects.select_related("assigned_to__user", "assigned_by"), pk=self.kwargs["pk"])
+
+    def patch(self, request, *args, **kwargs):
+        return self._process_accept(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
+        return self._process_accept(request, *args, **kwargs)
+
+    def _process_accept(self, request, *args, **kwargs):
+        from rest_framework.response import Response
         task = self.get_task()
         user = request.user
 
-        # Validation: ONLY an assigned EMPLOYEE can accept the task (Managers/Admins cannot accept)
+        # Validation: ONLY the assigned employee can accept the task
         if user.role != User.Role.EMPLOYEE:
-            raise PermissionDenied("Managers and Admins cannot accept tasks. Only the assigned employee can accept.")
+            raise PermissionDenied("Only the assigned employee can accept this task.")
 
         is_assigned_user = (task.assigned_to and task.assigned_to.user_id == user.id)
         if not is_assigned_user:
             raise PermissionDenied("Only the assigned employee can accept this task.")
 
+        # 400 if the task status is not "pending"
         if task.status != Task.Status.PENDING:
-            return success_response(
-                f"Task is already {task.get_status_display()}.",
-                TaskSerializer(task).data
+            return Response(
+                {"success": False, "message": f"Task cannot be accepted because its status is already {task.get_status_display()}."},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         task.status = Task.Status.IN_PROGRESS
-        task.save(update_fields=["status", "updated_at"])
+        task.accepted_at = timezone.now()
+        task.save(update_fields=["status", "accepted_at", "updated_at"])
 
         actor_name = user.get_full_name() or user.username
         log_task_activity(
@@ -457,14 +469,14 @@ class TaskAcceptView(generics.GenericAPIView):
             f"{actor_name} accepted the task (Status: In Progress)"
         )
 
-        # Notify task creator / manager
+        # Notify task creator / manager: "<Employee name> accepted the task: <title>"
         try:
             from notifications.models import Notification
-            if task.assigned_by and task.assigned_by != user:
+            if task.assigned_by:
                 Notification.objects.create(
                     user=task.assigned_by,
                     title="Task Accepted 🚀",
-                    message=f'"{task.title}" has been accepted by {actor_name} and is now In Progress.',
+                    message=f"{actor_name} accepted the task: {task.title}",
                     notification_type=Notification.NotificationType.TASK_UPDATED,
                 )
         except Exception:
@@ -475,7 +487,7 @@ class TaskAcceptView(generics.GenericAPIView):
 
 class TaskRejectView(generics.GenericAPIView):
     """
-    POST /api/tasks/<pk>/reject/
+    POST / PATCH /api/tasks/<pk>/reject/
     Body: { "reason": "<optional reason>" }
     Allows the assigned employee to reject a pending task.
     Automatically moves task status from PENDING to REJECTED.
@@ -483,24 +495,30 @@ class TaskRejectView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_task(self):
-        return get_object_or_404(visible_tasks_for(self.request.user), pk=self.kwargs["pk"])
+        return get_object_or_404(Task.objects.select_related("assigned_to__user", "assigned_by"), pk=self.kwargs["pk"])
+
+    def patch(self, request, *args, **kwargs):
+        return self._process_reject(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
+        return self._process_reject(request, *args, **kwargs)
+
+    def _process_reject(self, request, *args, **kwargs):
+        from rest_framework.response import Response
         task = self.get_task()
         user = request.user
 
-        # Validation: ONLY the assigned employee can reject the task (Managers/Admins cannot reject)
         if user.role != User.Role.EMPLOYEE:
-            raise PermissionDenied("Managers and Admins cannot reject tasks. Only the assigned employee can reject.")
+            raise PermissionDenied("Only the assigned employee can reject this task.")
 
         is_assigned_user = (task.assigned_to and task.assigned_to.user_id == user.id)
         if not is_assigned_user:
             raise PermissionDenied("Only the assigned employee can reject this task.")
 
         if task.status != Task.Status.PENDING:
-            return success_response(
-                f"Task is already {task.get_status_display()}.",
-                TaskSerializer(task).data
+            return Response(
+                {"success": False, "message": f"Task cannot be rejected because its status is already {task.get_status_display()}."},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         reason = request.data.get("reason", "").strip() or "No specific reason provided"
@@ -532,26 +550,39 @@ class TaskRejectView(generics.GenericAPIView):
 
 class TaskCompleteView(generics.GenericAPIView):
     """
-    POST /api/tasks/<pk>/complete/
-    Allows the assigned employee (or manager/admin) to mark the task completed.
+    POST / PATCH /api/tasks/<pk>/complete/
+    Allows the assigned employee to mark the task completed.
     Automatically moves task status to COMPLETED and sets completed_at.
     """
     permission_classes = [IsAuthenticated]
 
     def get_task(self):
-        return get_object_or_404(visible_tasks_for(self.request.user), pk=self.kwargs["pk"])
+        return get_object_or_404(Task.objects.select_related("assigned_to__user", "assigned_by"), pk=self.kwargs["pk"])
+
+    def patch(self, request, *args, **kwargs):
+        return self._process_complete(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
+        return self._process_complete(request, *args, **kwargs)
+
+    def _process_complete(self, request, *args, **kwargs):
+        from rest_framework.response import Response
         task = self.get_task()
         user = request.user
 
-        # Validation: ONLY the assigned employee can complete the task (Managers/Admins cannot complete)
         if user.role != User.Role.EMPLOYEE:
-            raise PermissionDenied("Managers and Admins cannot complete tasks. Only the assigned employee can mark this task completed.")
+            raise PermissionDenied("Only the assigned employee can mark this task completed.")
 
         is_assigned_user = (task.assigned_to and task.assigned_to.user_id == user.id)
         if not is_assigned_user:
             raise PermissionDenied("Only the assigned employee can mark this task completed.")
+
+        # Reject marking a pending task directly as completed
+        if task.status == Task.Status.PENDING:
+            return Response(
+                {"success": False, "message": "Pending tasks must be accepted before they can be marked completed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if task.status == Task.Status.COMPLETED:
             return success_response("Task is already completed.", TaskSerializer(task).data)
@@ -652,10 +683,13 @@ class TaskReassignView(generics.GenericAPIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Link unassigned employee to this manager
-            if new_employee.manager is None and new_employee.pk != manager_profile.pk:
-                new_employee.manager = manager_profile
-                new_employee.save(update_fields=["manager"])
+            # Manager can only reassign to employees within their team
+            if new_employee.manager_id != manager_profile.pk and new_employee.pk != manager_profile.pk:
+                from rest_framework.response import Response
+                return Response(
+                    {"message": "You can only assign tasks to employees in your team."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         old_employee = task.assigned_to
         old_name = old_employee.full_name if old_employee else "Unassigned"
@@ -665,8 +699,9 @@ class TaskReassignView(generics.GenericAPIView):
         # Save (Reset status to PENDING so new assignee must accept it)
         task.assigned_to = new_employee
         task.status = Task.Status.PENDING
+        task.accepted_at = None
         task.completed_at = None
-        task.save(update_fields=["assigned_to", "status", "completed_at", "updated_at"])
+        task.save(update_fields=["assigned_to", "status", "accepted_at", "completed_at", "updated_at"])
 
         # Audit log
         msg = f"{actor_name} reassigned task from {old_name} to {new_name}"
