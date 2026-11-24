@@ -5,10 +5,60 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+    initSidebarCollapse();
     initSidebarDrawer();
     initActiveNavLinks();
     initLogoutLinks();
 });
+
+/**
+ * 0. Sidebar Desktop Collapse & Minimize Controller
+ */
+function initSidebarCollapse() {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+
+    // Check saved state immediately
+    const isCollapsed = localStorage.getItem('etm_sidebar_collapsed') === 'true';
+    if (isCollapsed) {
+        sidebar.classList.add('collapsed');
+        document.documentElement.classList.add('sidebar-collapsed-pref');
+    }
+
+    // Ensure toggle button exists inside sidebar
+    let toggleBtn = document.getElementById('sidebarCollapseBtn');
+    if (!toggleBtn) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'sidebar-toggle-wrapper';
+        wrapper.innerHTML = `
+            <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="${isCollapsed ? 'Expand Sidebar' : 'Minimize Sidebar'}" aria-label="Minimize / Expand Sidebar">
+                <span class="toggle-icon">◀</span>
+                <span class="toggle-text">Minimize</span>
+            </button>
+        `;
+        sidebar.insertBefore(wrapper, sidebar.firstChild);
+        toggleBtn = document.getElementById('sidebarCollapseBtn');
+    }
+
+    if (toggleBtn) {
+        toggleBtn.setAttribute('title', isCollapsed ? 'Expand Sidebar' : 'Minimize Sidebar');
+        toggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const willCollapse = !sidebar.classList.contains('collapsed');
+            if (willCollapse) {
+                sidebar.classList.add('collapsed');
+                document.documentElement.classList.add('sidebar-collapsed-pref');
+                localStorage.setItem('etm_sidebar_collapsed', 'true');
+                toggleBtn.setAttribute('title', 'Expand Sidebar');
+            } else {
+                sidebar.classList.remove('collapsed');
+                document.documentElement.classList.remove('sidebar-collapsed-pref');
+                localStorage.setItem('etm_sidebar_collapsed', 'false');
+                toggleBtn.setAttribute('title', 'Minimize Sidebar');
+            }
+        });
+    }
+}
 
 /**
  * 1. Mobile Sidebar Drawer & Backdrop

@@ -26,7 +26,10 @@ function normalizeTask(apiTask) {
         abortedAt: apiTask.aborted_at || null,
         createdAt: apiTask.created_at || new Date().toISOString(),
         assignedTo: apiTask.assigned_to,
-        assignedBy: apiTask.assigned_by
+        assignedBy: apiTask.assigned_by,
+        total_duration_seconds: apiTask.total_duration_seconds || 0,
+        completed_duration_seconds: apiTask.completed_duration_seconds || 0,
+        active_timer: apiTask.active_timer || null
     };
 }
 
@@ -42,11 +45,7 @@ function getTasks() {
     try {
         const parsed = JSON.parse(rawData);
         if (Array.isArray(parsed)) {
-            const filtered = parsed.filter(t => !['1', '2', '3', '4', '5'].includes(String(t.id)));
-            if (filtered.length !== parsed.length) {
-                saveTasks(filtered);
-            }
-            return filtered;
+            return parsed;
         }
         return [];
     } catch (e) {

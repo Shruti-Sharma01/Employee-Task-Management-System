@@ -277,38 +277,159 @@ ul {
 }
 
 /* ---------------------------------------------------------
-   6. LAYOUT 
+   6. LAYOUT & SIDEBAR
    --------------------------------------------------------- */
 .layout {
     display: flex;
     min-height: calc(100vh - 64px);
+    width: 100%;
 }
 
 .sidebar {
-    width: 220px;
+    width: 175px;
     background-color: var(--color-sidebar);
-    padding: var(--space-lg) 0;
+    padding: 12px 0;
     flex-shrink: 0;
-    transition: transform 0.2s ease; /* used by mobile off-canvas */
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s ease;
     box-shadow: 2px 0 10px rgba(8, 18, 156, 0.08);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    user-select: none;
+    z-index: 50;
+}
+
+.sidebar-toggle-wrapper {
+    padding: 0 10px 10px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 8px;
+}
+
+.sidebar-collapse-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #D2E3FC;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.sidebar-collapse-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    color: #FFFFFF;
+}
+
+.sidebar-collapse-btn .toggle-icon {
+    font-size: 0.75rem;
+    transition: transform 0.2s ease;
+}
+
+.sidebar ul {
+    list-style: none;
+    padding: 0 8px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .sidebar a {
-    display: block;
-    padding: 12px var(--space-lg);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
     color: #D2E3FC;
-    font-size: 0.9rem;
+    font-size: 0.86rem;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+    text-decoration: none;
 }
 
-.sidebar a:hover,
-.sidebar a.active {
+.sidebar a .nav-icon {
+    font-size: 1.05rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+}
+
+.sidebar a .nav-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sidebar a:hover {
     background-color: var(--color-sidebar-hover);
     color: #FFFFFF;
 }
 
+.sidebar a.active {
+    background-color: rgba(255, 255, 255, 0.18);
+    color: #FFFFFF;
+    font-weight: 600;
+}
+
+/* --- Minimized / Collapsed Sidebar Mode --- */
+.sidebar.collapsed,
+html.sidebar-collapsed-pref .sidebar {
+    width: 60px;
+}
+
+.sidebar.collapsed .toggle-text,
+html.sidebar-collapsed-pref .sidebar .toggle-text,
+.sidebar.collapsed .nav-text,
+html.sidebar-collapsed-pref .sidebar .nav-text {
+    display: none;
+}
+
+.sidebar.collapsed .sidebar-toggle-wrapper,
+html.sidebar-collapsed-pref .sidebar .sidebar-toggle-wrapper {
+    padding: 0 6px 10px 6px;
+}
+
+.sidebar.collapsed .sidebar-collapse-btn,
+html.sidebar-collapsed-pref .sidebar .sidebar-collapse-btn {
+    justify-content: center;
+    padding: 6px 0;
+}
+
+.sidebar.collapsed .sidebar-collapse-btn .toggle-icon,
+html.sidebar-collapsed-pref .sidebar .sidebar-collapse-btn .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.sidebar.collapsed ul,
+html.sidebar-collapsed-pref .sidebar ul {
+    padding: 0 6px;
+}
+
+.sidebar.collapsed a,
+html.sidebar-collapsed-pref .sidebar a {
+    justify-content: center;
+    padding: 10px 0;
+}
+
+.sidebar.collapsed a .nav-icon,
+html.sidebar-collapsed-pref .sidebar a .nav-icon {
+    font-size: 1.2rem;
+    margin: 0;
+}
+
 .main-content {
     flex: 1;
-    padding: var(--space-xl);
+    padding: 24px var(--space-lg);
+    min-width: 0;
 }
 
 /* ---------------------------------------------------------
@@ -327,11 +448,10 @@ ul {
    --------------------------------------------------------- */
 .tasks-table {
     width: 100%;
-    border-collapse: collapse; /* removes double borders between cells */
+    min-width: 980px;
+    border-collapse: separate;
+    border-spacing: 0;
     background-color: var(--color-surface);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    box-shadow: var(--shadow-card);
 }
 
 .tasks-table th,
@@ -739,3 +859,277 @@ html {
     margin-top: 6px;
 }
 
+
+
+/* =============================================================
+   Enhanced Modern Task UI Styles
+   ============================================================= */
+/* Modern task list container with clean horizontal scroll */
+.task-list-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    background: var(--color-surface, #ffffff);
+    border-radius: 12px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    margin-bottom: var(--space-xl, 2rem);
+}
+
+.tasks-table {
+    width: 100%;
+    min-width: 980px;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: transparent;
+}
+
+.tasks-table th,
+.tasks-table td {
+    padding: 13px 16px;
+    vertical-align: middle;
+}
+
+.tasks-table th {
+    background: #f8fafc;
+    color: var(--color-text-muted, #64748b);
+    font-weight: 700;
+    font-size: 0.76rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--color-border, #e2e8f0);
+    white-space: nowrap;
+}
+
+html.dark-theme .tasks-table th {
+    background: #1e293b;
+    color: #94a3b8;
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.tasks-table td {
+    border-bottom: 1px solid var(--color-border, #f1f5f9);
+    font-size: 0.88rem;
+}
+
+html.dark-theme .tasks-table td {
+    border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+.tasks-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.tasks-table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.tasks-table tbody tr:hover {
+    background-color: rgba(59, 130, 246, 0.04);
+}
+
+html.dark-theme .tasks-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Modern pill status badges */
+.badge-pill-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: capitalize;
+    white-space: nowrap;
+}
+
+.badge-pill-status.pending {
+    background: #fef9c3;
+    color: #854d0e;
+    border: 1px solid #fde047;
+}
+
+.badge-pill-status.in-progress {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+}
+
+.badge-pill-status.completed {
+    background: #dcfce7;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+.badge-pill-status.rejected {
+    background: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.badge-pill-status.aborted {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+}
+
+/* Priority badge pill */
+.badge-priority {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 12px;
+}
+
+/* Time spent pill badge */
+.time-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    font-size: 0.78rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(37, 99, 235, 0.18) 100%);
+    color: #2563eb;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+html.dark-theme .time-pill-badge {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(37, 99, 235, 0.3) 100%);
+    color: #93c5fd;
+    border-color: rgba(59, 130, 246, 0.35);
+}
+
+/* Modern action buttons */
+.btn-action-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+    user-select: none;
+    line-height: 1.2;
+}
+
+.btn-action-pill:hover {
+    transform: translateY(-1px);
+}
+
+.btn-accept-pill {
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+    color: #ffffff;
+    box-shadow: 0 2px 4px rgba(22, 163, 74, 0.25);
+    border-color: #15803d;
+}
+
+.btn-accept-pill:hover {
+    background: linear-gradient(135deg, #15803d 0%, #166534 100%);
+}
+
+.btn-complete-pill {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: #ffffff;
+    box-shadow: 0 2px 4px rgba(5, 150, 105, 0.25);
+    border-color: #047857;
+}
+
+.btn-complete-pill:hover {
+    background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+}
+
+.btn-reject-pill {
+    background: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.btn-reject-pill:hover {
+    background: #fecaca;
+}
+
+.btn-abort-pill {
+    background: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+}
+
+.btn-abort-pill:hover {
+    background: #e2e8f0;
+}
+
+.btn-edit-pill {
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+}
+
+.btn-edit-pill:hover {
+    background: #dbeafe;
+}
+
+.btn-delete-pill {
+    background: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.btn-delete-pill:hover {
+    background: #fecaca;
+}
+
+.btn-timer-pill-active {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35);
+    border-color: #dc2626;
+    /* animation: timerPulse 2s infinite ease-in-out; */
+}
+
+.btn-timer-pill-idle {
+    background: rgba(37, 99, 235, 0.08);
+    color: #2563eb;
+    border: 1px solid rgba(37, 99, 235, 0.2);
+}
+
+.btn-timer-pill-idle:hover {
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.btn-notes-pill {
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+}
+
+.btn-notes-pill:hover {
+    background: #e2e8f0;
+}
+
+/* Kanban card enhancements */
+.kanban-card {
+    border-radius: 10px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: all 0.2s ease;
+}
+
+.kanban-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}

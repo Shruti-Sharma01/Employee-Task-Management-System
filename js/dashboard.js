@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             await fetchTasksFromAPI();
             loadDashboard();  // re-render with fresh DB data
+            await fetchDashboardMetrics();
         } catch (e) {
             console.warn('Dashboard API sync deferred:', e);
         }
@@ -45,6 +46,8 @@ function loadDashboard() {
     let inProgress = 0;
     let completed  = 0;
     let cancelled  = 0;
+    let rejected   = 0;
+    let aborted    = 0;
     const overdueTasks = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -55,9 +58,11 @@ function loadDashboard() {
         else if (status === 'in-progress' || status === 'in progress')  inProgress++;
         else if (status === 'completed')                                completed++;
         else if (status === 'cancelled')                                cancelled++;
+        else if (status === 'rejected')                                 rejected++;
+        else if (status === 'aborted')                                  aborted++;
 
-        // Overdue: not completed/cancelled AND deadline in the past
-        if (status !== 'completed' && status !== 'cancelled' && task.dueDate) {
+        // Overdue: pending or in-progress AND deadline in the past
+        if ((status === 'pending' || status === 'in-progress' || status === 'in progress') && task.dueDate) {
             const due = new Date(task.dueDate);
             due.setHours(0, 0, 0, 0);
             if (due < today) {
@@ -74,6 +79,13 @@ function loadDashboard() {
     updateText('progressTasks',  inProgress);
     updateText('completedTasks', completed);
 
+    let totalTrackedSecs = 0;
+    tasks.forEach(t => {
+        totalTrackedSecs += (t.total_duration_seconds || 0);
+    });
+    const localHours = (totalTrackedSecs / 3600).toFixed(1);
+    updateText('hoursTracked', `${localHours}h`);
+
     // ── Progress Bar ─────────────────────────────────────────────
     const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
     const progressBar = document.getElementById('progressBar');
@@ -85,7 +97,7 @@ function loadDashboard() {
     renderOverdue(overdueTasks);
 
     // ── Charts ───────────────────────────────────────────────────
-    renderDoughnutChart({ pending, inProgress, completed, cancelled });
+    renderDoughnutChart({ pending, inProgress, completed, cancelled, rejected, aborted });
     renderWeeklyBarChart(tasks);
 
     // ── Recent Tasks ─────────────────────────────────────────────
@@ -128,11 +140,11 @@ function renderOverdue(overdueTasks) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Doughnut Chart — Task Status Distribution
 // ─────────────────────────────────────────────────────────────────────────────
-function renderDoughnutChart({ pending, inProgress, completed, cancelled }) {
+function renderDoughnutChart({ pending, inProgress, completed, cancelled, rejected = 0, aborted = 0 }) {
     const canvas = document.getElementById('statusDoughnutChart');
     if (!canvas) return;
 
-    const total = pending + inProgress + completed + cancelled;
+    const total = pending + inProgress + completed + cancelled + rejected + aborted;
     const centerLabel = document.getElementById('doughnutTotal');
     if (centerLabel) centerLabel.textContent = total;
 
@@ -145,6 +157,16 @@ function renderDoughnutChart({ pending, inProgress, completed, cancelled }) {
     const data    = [pending, inProgress, completed, cancelled];
     const labels  = ['Pending', 'In Progress', 'Completed', 'Cancelled'];
     const colors  = ['#E6A821', '#3498db', '#27AE60', '#e74c3c'];
+    if (rejected > 0) {
+        data.push(rejected);
+        labels.push('Rejected');
+        colors.push('#b91c1c');
+    }
+    if (aborted > 0) {
+        data.push(aborted);
+        labels.push('Aborted');
+        colors.push('#ea580c');
+    }
 
     statusDoughnutChart = new Chart(canvas, {
         type: 'doughnut',
@@ -375,4 +397,23 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+async function fetchDashboardMetrics() {
+    if (typeof apiRequest !== 'function') return;
+    try {
+        const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+        const role = user?.role || 'EMPLOYEE';
+        const endpoint = role === 'MANAGER' ? '/dashboard/manager/' : (role === 'ADMIN' ? '/dashboard/admin/' : '/dashboard/employee/');
+        const res = await apiRequest(endpoint);
+        if (res.ok && res.data) {
+            const data = res.data?.data || res.data;
+            const hours = data.total_hours_tracked ?? data.total_team_hours_tracked ?? null;
+            if (hours !== null) {
+                updateText('hoursTracked', `${hours}h`);
+                if (role === 'MANAGER') {
+                    updateText('hoursTrackedLabel', 'Team Hours');
+                }
+            }
+        }
+    } catch (_) {}
 }

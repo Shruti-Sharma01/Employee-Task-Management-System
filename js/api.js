@@ -4,10 +4,15 @@
  * Directly connects frontend to Django REST Framework backend and PostgreSQL database.
  */
 
-// Smart API base URL: Uses relative '/api' on Render / production, and only targets port 8000 when running on local Live Server (port 5500)
-const isLocalLiveServer = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') && window.location.port === '5500';
+// Smart API base URL:
+// 1. If running on file:// or from a local frontend server (port != 8000), target Django at http://127.0.0.1:8000/api
+// 2. If served directly by Django (port 8000) or deployed in production (e.g. Render), use relative '/api'
+const isNonDjangoLocal = (
+    window.location.protocol === 'file:' ||
+    ((window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') && window.location.port && window.location.port !== '8000')
+);
 
-const API_BASE_URL = isLocalLiveServer 
+const API_BASE_URL = isNonDjangoLocal 
     ? 'http://127.0.0.1:8000/api' 
     : '/api';
 

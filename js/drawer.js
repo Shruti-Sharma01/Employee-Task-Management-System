@@ -97,6 +97,39 @@
                         <div id="drawerActionNotice" style="font-size:0.8rem;color:var(--color-text-muted);display:none;margin-top:6px;"></div>
                     </div>
 
+                    <!-- Section: Automatic Time Tracking -->
+                    <div class="drawer-section" id="drawerTimeTrackingSection" style="margin-top:14px;border-top:1px solid var(--color-border,#e2e8f0);padding-top:14px;">
+                        <div class="drawer-section-title" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                            <span style="display:flex;align-items:center;gap:6px;font-weight:700;">⏱️ Automatic Work Timer</span>
+                            <span id="drawerTotalTimeBadge" class="time-pill-badge">
+                                0h 00m
+                            </span>
+                        </div>
+                        <div class="drawer-timer-box-modern">
+                            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div class="timer-display-wrap">
+                                        <span id="drawerTimerDisplay" class="timer-digital-clock">00:00:00</span>
+                                    </div>
+                                </div>
+                                <div style="display:flex;gap:8px;">
+                                    <button type="button" id="drawerTimerStartBtn" class="btn-timer-action btn-timer-resume" onclick="window._drawerStartTimer()">
+                                        ▶ Resume Timer
+                                    </button>
+                                    <button type="button" id="drawerTimerStopBtn" class="btn-timer-action btn-timer-pause" style="display:none;" onclick="window._drawerStopTimer()">
+                                        ⏸ Pause Timer
+                                    </button>
+                                </div>
+                            </div>
+                            <div style="font-size:0.75rem;color:var(--color-text-muted,#64748b);margin-top:8px;display:flex;align-items:center;gap:6px;">
+                                <span>⚡</span> Timer automatically starts when you accept the task and pauses when completed.
+                            </div>
+                        </div>
+                        <div id="drawerTimeEntriesList" class="drawer-time-logs-list">
+                            <div style="font-size:0.8rem;color:var(--color-text-muted);text-align:center;padding:10px;">No work sessions logged yet.</div>
+                        </div>
+                    </div>
+
                     <!-- Reassign Panel (Manager / Admin only) -->
                     <div class="drawer-reassign-panel" id="drawerReassignPanel" style="display:none;">
                         <div class="drawer-reassign-header">
@@ -300,6 +333,7 @@
         loadComments(taskId);
         loadAttachments(taskId);
         loadActivities(taskId);
+        loadTimeEntries(taskId);
     };
 
     // ── Close Drawer ─────────────────────────────────────────────
@@ -311,6 +345,7 @@
         if (drawer) drawer.classList.remove('open');
 
         document.body.style.overflow = '';
+        stopDrawerTimerTicker();
         currentDrawerTaskId = null;
         isDrawerOpen = false;
     };
@@ -723,7 +758,10 @@
 
     // ── Delete Comment ───────────────────────────────────────────
     window._drawerDeleteComment = async function (taskId, commentId) {
-        if (!confirm('Are you sure you want to delete this comment?')) return;
+        const ok = typeof window.showConfirm === 'function'
+            ? await window.showConfirm('Are you sure you want to delete this comment?')
+            : confirm('Are you sure you want to delete this comment?');
+        if (!ok) return;
 
         try {
             const res = await apiRequest(`/comments/${commentId}/`, {
@@ -1022,7 +1060,10 @@
 
     // ── Delete Attachment ────────────────────────────────────────
     window._drawerDeleteAttachment = async function (taskId, attachmentId) {
-        if (!confirm('Are you sure you want to delete this attachment?')) return;
+        const ok = typeof window.showConfirm === 'function'
+            ? await window.showConfirm('Are you sure you want to delete this attachment?')
+            : confirm('Are you sure you want to delete this attachment?');
+        if (!ok) return;
 
         try {
             const res = await apiRequest(`/attachments/${attachmentId}/`, {
@@ -1241,6 +1282,8 @@
             }
             await loadTaskData(currentDrawerTaskId);
             await loadActivities(currentDrawerTaskId);
+            await loadTimeEntries(currentDrawerTaskId);
+            await loadTimeEntries(currentDrawerTaskId);
             if (typeof renderTasks === 'function') renderTasks();
             else if (typeof fetchTasksFromAPI === 'function') {
                 await fetchTasksFromAPI();
@@ -1322,6 +1365,257 @@
         }
     };
 
+
+    // ── Time Tracking Functions ──────────────────────────────────
+    let drawerTimerInterval = null;
+
+    function formatTimeDuration(seconds) {
+        if (!seconds || seconds <= 0) return '0h 00m';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        if (h > 0) return `${h}h ${m < 10 ? '0' : ''}${m}m`;
+        if (m > 0) return `${m}m ${s < 10 ? '0' : ''}${s}s`;
+        return `${s}s`;
+    }
+
+    function formatTimerClock(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        const pad = (n) => (n < 10 ? '0' : '') + n;
+        return `${pad(h)}:${pad(m)}:${pad(s)}`;
+    }
+
+    function startDrawerTimerTicker(startTimeIso, completedSecs = 0, badgeEl = null) {
+        stopDrawerTimerTicker();
+        const startMs = new Date(startTimeIso).getTime();
+
+        const updateClock = () => {
+            const displayEl = document.getElementById('drawerTimerDisplay');
+            const diffSecs = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+            const currentTotal = completedSecs + diffSecs;
+            if (displayEl) {
+                displayEl.textContent = formatTimerClock(currentTotal);
+            }
+            if (badgeEl) {
+                badgeEl.textContent = formatTimeDuration(currentTotal);
+            }
+        };
+
+        updateClock();
+        drawerTimerInterval = setInterval(updateClock, 1000);
+    }
+
+    function stopDrawerTimerTicker() {
+        if (drawerTimerInterval) {
+            clearInterval(drawerTimerInterval);
+            drawerTimerInterval = null;
+        }
+    }
+
+    async function loadTimeEntries(taskId) {
+        const badgeEl = document.getElementById('drawerTotalTimeBadge');
+        const startBtn = document.getElementById('drawerTimerStartBtn');
+        const stopBtn = document.getElementById('drawerTimerStopBtn');
+        const listEl = document.getElementById('drawerTimeEntriesList');
+
+        if (!badgeEl || !startBtn || !stopBtn || !listEl) return;
+
+        try {
+            const res = await apiRequest(`/tasks/${taskId}/time-entries/`);
+            if (!res.ok) return;
+
+            const payload = res.data?.data || res.data || {};
+            const totalSecs = payload.total_duration_seconds || 0;
+            const completedSecs = payload.completed_duration_seconds || 0;
+            const entriesData = payload.entries || [];
+            const entries = Array.isArray(entriesData.results) ? entriesData.results : (Array.isArray(entriesData) ? entriesData : []);
+
+            badgeEl.textContent = formatTimeDuration(totalSecs);
+
+            // Check if there is an active timer for this task
+            const activeEntry = entries.find(e => !e.end_time);
+            if (activeEntry) {
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-flex';
+                startDrawerTimerTicker(activeEntry.start_time, completedSecs, badgeEl);
+            } else {
+                startBtn.style.display = 'inline-flex';
+                startBtn.innerHTML = '▶ Resume Timer';
+                stopBtn.style.display = 'none';
+                stopDrawerTimerTicker();
+                const displayEl = document.getElementById('drawerTimerDisplay');
+                if (displayEl) {
+                    displayEl.textContent = formatTimerClock(totalSecs);
+                }
+            }
+
+            // Render entries list
+            const completedEntries = entries.filter(e => e.end_time);
+            if (completedEntries.length === 0) {
+                listEl.innerHTML = '<div style="font-size:0.8rem;color:var(--color-text-muted);text-align:center;padding:8px;">No time logged yet.</div>';
+                return;
+            }
+
+            const currentUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+            const role = (currentUser?.role || '').toUpperCase();
+
+            listEl.innerHTML = completedEntries.map(e => {
+                const dateStr = new Date(e.start_time).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const durStr = formatTimeDuration(e.duration_seconds);
+                const descStr = e.description ? ` &middot; <em>${escapeHtml(e.description)}</em>` : '';
+                const uName = e.user?.full_name || e.user?.username || 'User';
+                const canDelete = role === 'ADMIN' || (currentUser && String(currentUser.id) === String(e.user?.id));
+
+                return `
+                    <div class="time-entry-item">
+                        <div>
+                            <span class="time-entry-dur">${durStr}</span>
+                            <span style="color:var(--color-text-muted);margin-left:6px;font-size:0.76rem;">${dateStr} (${escapeHtml(uName)})${descStr}</span>
+                        </div>
+                        ${canDelete ? `
+                            <button type="button" onclick="window._drawerDeleteTimeEntry(${e.id})" title="Delete entry"
+                                    style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.85rem;padding:2px 6px;">
+                                &times;
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+
+        } catch (err) {
+            console.warn('[Drawer] Could not load time entries:', err);
+        }
+    }
+
+    window._drawerStartTimer = async function () {
+        if (!currentDrawerTaskId) return;
+        const btn = document.getElementById('drawerTimerStartBtn');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await apiRequest(`/tasks/${currentDrawerTaskId}/timer/start/`, {
+                method: 'POST',
+                body: JSON.stringify({})
+            });
+
+            if (res.ok) {
+                await loadTimeEntries(currentDrawerTaskId);
+                await loadActivities(currentDrawerTaskId);
+                if (typeof fetchTasksFromAPI === 'function') {
+                    await fetchTasksFromAPI();
+                    if (typeof renderTasks === 'function') renderTasks();
+                }
+            } else {
+                alert(res.data?.message || 'Could not start timer.');
+            }
+        } catch (err) {
+            alert('Failed to start timer: ' + (err.message || err));
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    };
+
+    window._drawerStopTimer = async function () {
+        if (!currentDrawerTaskId) return;
+        const btn = document.getElementById('drawerTimerStopBtn');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await apiRequest(`/tasks/${currentDrawerTaskId}/timer/stop/`, {
+                method: 'POST',
+                body: JSON.stringify({})
+            });
+
+            if (res.ok) {
+                stopDrawerTimerTicker();
+                await loadTimeEntries(currentDrawerTaskId);
+                await loadActivities(currentDrawerTaskId);
+                if (typeof fetchTasksFromAPI === 'function') {
+                    await fetchTasksFromAPI();
+                    if (typeof renderTasks === 'function') renderTasks();
+                }
+            } else {
+                alert(res.data?.message || 'Could not stop timer.');
+            }
+        } catch (err) {
+            alert('Failed to stop timer: ' + (err.message || err));
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    };
+
+    window._drawerToggleManualTime = function () {
+        const form = document.getElementById('drawerManualTimeForm');
+        if (!form) return;
+        form.style.display = (form.style.display === 'none' || !form.style.display) ? 'block' : 'none';
+    };
+
+    window._drawerSubmitManualTime = async function () {
+        if (!currentDrawerTaskId) return;
+        const minInput = document.getElementById('drawerManualMinutes');
+        const descInput = document.getElementById('drawerManualDesc');
+
+        const mins = parseInt(minInput?.value, 10);
+        if (!mins || mins <= 0) {
+            alert('Please enter a valid number of minutes (at least 1).');
+            return;
+        }
+
+        const desc = descInput?.value?.trim() || '';
+
+        try {
+            const res = await apiRequest(`/tasks/${currentDrawerTaskId}/time-entries/`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    duration_minutes: mins,
+                    description: desc
+                })
+            });
+
+            if (res.ok) {
+                if (minInput) minInput.value = '';
+                if (descInput) descInput.value = '';
+                window._drawerToggleManualTime();
+                await loadTimeEntries(currentDrawerTaskId);
+                await loadActivities(currentDrawerTaskId);
+                if (typeof fetchTasksFromAPI === 'function') {
+                    await fetchTasksFromAPI();
+                    if (typeof renderTasks === 'function') renderTasks();
+                }
+            } else {
+                alert(res.data?.message || 'Could not save manual time entry.');
+            }
+        } catch (err) {
+            alert('Error logging time: ' + (err.message || err));
+        }
+    };
+
+    window._drawerDeleteTimeEntry = async function (entryId) {
+        const ok = typeof window.showConfirm === 'function'
+            ? await window.showConfirm('Are you sure you want to delete this time entry?')
+            : confirm('Are you sure you want to delete this time entry?');
+        if (!ok) return;
+        try {
+            const res = await apiRequest(`/time-entries/${entryId}/`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                await loadTimeEntries(currentDrawerTaskId);
+                await loadActivities(currentDrawerTaskId);
+                if (typeof fetchTasksFromAPI === 'function') {
+                    await fetchTasksFromAPI();
+                    if (typeof renderTasks === 'function') renderTasks();
+                }
+            } else {
+                alert(res.data?.message || 'Could not delete time entry.');
+            }
+        } catch (err) {
+            alert('Error deleting entry: ' + (err.message || err));
+        }
+    };
+
     window._drawerCompleteCurrentTask = async function () {
         if (!currentDrawerTaskId) return;
 
@@ -1332,7 +1626,10 @@
             return;
         }
 
-        if (!confirm('Mark this task as completed?')) return;
+        const ok = typeof window.showConfirm === 'function'
+            ? await window.showConfirm('Are you sure you want to mark this task as completed?')
+            : confirm('Are you sure you want to mark this task as completed?');
+        if (!ok) return;
         const btn = document.getElementById('drawerCompleteBtn');
         if (btn) {
             btn.disabled = true;

@@ -13,7 +13,7 @@ from accounts.permissions import IsAdmin, IsAdminOrManager
 from etms.responses import success_response
 
 from .filters import TaskFilter
-from .models import Task, TaskActivity, TaskAttachment, TaskComment
+from .models import Task, TaskActivity, TaskAttachment, TaskComment, TimeEntry
 from .serializers import (
     TaskActivitySerializer,
     TaskAttachmentSerializer,
@@ -21,6 +21,8 @@ from .serializers import (
     TaskSerializer,
     TaskStatusSerializer,
     TaskWriteSerializer,
+    TimeEntrySerializer,
+    TimeEntryUpdateSerializer,
 )
 
 
@@ -50,7 +52,11 @@ def visible_tasks_for(user):
     if user.role == User.Role.MANAGER:
         if profile is None:
             return tasks.filter(assigned_by=user)
-        return tasks.filter(Q(assigned_to__manager=profile) | Q(assigned_by=user))
+        return tasks.filter(
+            Q(assigned_to__manager=profile) |
+            Q(assigned_to__department__iexact=profile.department.strip() if profile.department else '') |
+            Q(assigned_by=user)
+        )
 
     # EMPLOYEE: tasks assigned to them OR tasks created by them
     if profile:
@@ -463,6 +469,17 @@ class TaskAcceptView(generics.GenericAPIView):
         task.accepted_at = timezone.now()
         task.save(update_fields=["status", "accepted_at", "updated_at"])
 
+        # Auto-start timer immediately upon accepting task
+        active_timer = TimeEntry.objects.filter(user=user, end_time__isnull=True).first()
+        if active_timer:
+            active_timer.stop()
+        TimeEntry.objects.create(
+            task=task,
+            user=user,
+            start_time=timezone.now(),
+            description="Auto-started on task acceptance",
+        )
+
         actor_name = user.get_full_name() or user.username
         log_task_activity(
             task, user, "STATUS_CHANGED",
@@ -536,6 +553,10 @@ class TaskRejectView(generics.GenericAPIView):
         task.rejected_at = timezone.now()
         task.save(update_fields=["status", "status_reason", "rejected_at", "updated_at"])
 
+        # Auto-stop any running timers for this task
+        for active in TimeEntry.objects.filter(task=task, end_time__isnull=True):
+            active.stop()
+
         actor_name = user.get_full_name() or user.username
         msg = f"{actor_name} rejected the task — Reason: {reason}"
         log_task_activity(task, user, "STATUS_CHANGED", msg)
@@ -607,6 +628,10 @@ class TaskAbortView(generics.GenericAPIView):
         task.aborted_at = timezone.now()
         task.save(update_fields=["status", "status_reason", "aborted_at", "updated_at"])
 
+        # Auto-stop any running timers for this task
+        for active in TimeEntry.objects.filter(task=task, end_time__isnull=True):
+            active.stop()
+
         actor_name = user.get_full_name() or user.username
         msg = f"{actor_name} aborted the task — Reason: {reason}"
         log_task_activity(task, user, "STATUS_CHANGED", msg)
@@ -672,6 +697,10 @@ class TaskCompleteView(generics.GenericAPIView):
         task.status = Task.Status.COMPLETED
         task.completed_at = timezone.now()
         task.save(update_fields=["status", "completed_at", "updated_at"])
+
+        # Auto-stop any running timers for this task
+        for active in TimeEntry.objects.filter(task=task, end_time__isnull=True):
+            active.stop()
 
         actor_name = user.get_full_name() or user.username
         log_task_activity(
@@ -765,13 +794,25 @@ class TaskReassignView(generics.GenericAPIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Manager can only reassign to employees within their team
-            if new_employee.manager_id != manager_profile.pk and new_employee.pk != manager_profile.pk:
+            # Manager can only reassign to employees within their team (either direct reporting or same department)
+            is_same_team = (
+                new_employee.manager_id == manager_profile.pk or
+                new_employee.pk == manager_profile.pk or
+                (
+                    new_employee.department and manager_profile.department and
+                    new_employee.department.strip().lower() == manager_profile.department.strip().lower()
+                )
+            )
+            if not is_same_team:
                 from rest_framework.response import Response
                 return Response(
                     {"message": "You can only assign tasks to employees in your team."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            # Automatically link employee to manager if not already linked
+            if new_employee.manager_id is None and new_employee.pk != manager_profile.pk:
+                new_employee.manager = manager_profile
+                new_employee.save(update_fields=["manager"])
 
         old_employee = task.assigned_to
         old_name = old_employee.full_name if old_employee else "Unassigned"
@@ -942,6 +983,7 @@ class TaskExportExcelView(APIView):
         status_colors   = {
             "Pending": "FFF3CD", "In Progress": "CCE5FF",
             "Completed": "D4EDDA", "Cancelled": "E2E3E5",
+            "Rejected": "F8D7DA", "Aborted": "FFEAA7",
         }
 
         col_widths = [10, 30, 40, 15, 12, 14, 22, 22, 13, 13, 18, 18]
@@ -1042,6 +1084,8 @@ class TaskExportPDFView(APIView):
             "In Progress": colors.HexColor("#CCE5FF"),
             "Completed":   colors.HexColor("#D4EDDA"),
             "Cancelled":   colors.HexColor("#E2E3E5"),
+            "Rejected":    colors.HexColor("#F8D7DA"),
+            "Aborted":     colors.HexColor("#FFEAA7"),
         }
 
         title_style = ParagraphStyle(
@@ -1151,4 +1195,329 @@ class TaskExportPDFView(APIView):
 
         response = HttpResponse(buf.read(), content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="ETMS_Tasks_{_today_str()}.pdf"'
-        return response
+        return response
+
+
+
+# ---------------------------------------------------------------
+# Time Tracking Views
+# ---------------------------------------------------------------
+class TaskTimerStartView(generics.GenericAPIView):
+    """
+    POST /api/tasks/<task_id>/timer/start/
+    Starts a timer on this task for the current user.
+    If the user has an existing active timer anywhere, it is automatically stopped.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, task_id, *args, **kwargs):
+        task = get_object_or_404(visible_tasks_for(request.user), pk=task_id)
+
+        # Check if task is locked
+        if task.status in (Task.Status.COMPLETED, Task.Status.REJECTED, Task.Status.ABORTED, Task.Status.CANCELLED):
+            from rest_framework.response import Response
+            return Response(
+                {"success": False, "message": f"Cannot track time on locked task ({task.get_status_display()})."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # If employee, must be assigned to them
+        if request.user.role == User.Role.EMPLOYEE and task.assigned_to:
+            if task.assigned_to.user_id != request.user.id:
+                raise PermissionDenied("You can only track time for tasks assigned to you.")
+
+        # If pending, auto-accept task if employee starts timer
+        if task.status == Task.Status.PENDING and request.user.role == User.Role.EMPLOYEE:
+            task.status = Task.Status.IN_PROGRESS
+            task.accepted_at = timezone.now()
+            task.save(update_fields=["status", "accepted_at", "updated_at"])
+            actor_name = request.user.get_full_name() or request.user.username
+            log_task_activity(task, request.user, "STATUS_CHANGED", f"{actor_name} accepted the task and started timer")
+
+        # Auto-stop any active timer for this user
+        active_timer = TimeEntry.objects.filter(user=request.user, end_time__isnull=True).first()
+        if active_timer:
+            active_timer.stop()
+            if active_timer.task_id != task.id:
+                log_task_activity(
+                    active_timer.task,
+                    request.user,
+                    "TIMER_STOPPED",
+                    f"Timer auto-stopped (switched to Task #{task.id})",
+                )
+
+        description = request.data.get("description", "").strip() if request.data else ""
+        entry = TimeEntry.objects.create(
+            task=task,
+            user=request.user,
+            start_time=timezone.now(),
+            description=description,
+        )
+
+        actor_name = request.user.get_full_name() or request.user.username
+        log_task_activity(task, request.user, "TIMER_STARTED", f"{actor_name} started timer")
+
+        return success_response("Timer started successfully", TimeEntrySerializer(entry).data, status.HTTP_201_CREATED)
+
+
+class TaskTimerStopView(generics.GenericAPIView):
+    """
+    POST /api/tasks/<task_id>/timer/stop/
+    Stops the active timer on this task for the current user.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, task_id, *args, **kwargs):
+        task = get_object_or_404(visible_tasks_for(request.user), pk=task_id)
+
+        entry = TimeEntry.objects.filter(task=task, user=request.user, end_time__isnull=True).first()
+        if not entry:
+            from rest_framework.response import Response
+            return Response(
+                {"success": False, "message": "No active timer running on this task."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        desc = request.data.get("description") if request.data else None
+        if desc is not None:
+            entry.description = desc.strip()
+
+        entry.stop()
+
+        secs = entry.duration_seconds
+        hours = secs // 3600
+        minutes = (secs % 3600) // 60
+        seconds = secs % 60
+        time_str = f"{hours}h {minutes}m {seconds}s" if hours > 0 else f"{minutes}m {seconds}s"
+
+        actor_name = request.user.get_full_name() or request.user.username
+        log_task_activity(task, request.user, "TIMER_STOPPED", f"{actor_name} stopped timer ({time_str})")
+
+        return success_response(f"Timer stopped. Tracked {time_str}", TimeEntrySerializer(entry).data)
+
+
+class ActiveTimerView(generics.GenericAPIView):
+    """
+    GET /api/tasks/timer/active/
+    Returns whether the current user has any active timer running right now across all tasks.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        active = TimeEntry.objects.filter(user=request.user, end_time__isnull=True).select_related("task").first()
+        if active:
+            return success_response("Active timer found", {
+                "active": True,
+                "timer": TimeEntrySerializer(active).data,
+            })
+        return success_response("No active timer", {
+            "active": False,
+            "timer": None,
+        })
+
+
+class TaskTimeEntryListCreateView(generics.ListCreateAPIView):
+    """
+    GET / POST /api/tasks/<task_id>/time-entries/
+    Lists time entries for a task or adds a manual entry.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = TimeEntrySerializer
+
+    def get_task(self):
+        return get_object_or_404(visible_tasks_for(self.request.user), pk=self.kwargs["task_id"])
+
+    def get_queryset(self):
+        return TimeEntry.objects.filter(task=self.get_task()).select_related("user")
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        from django.db.models import Sum
+        from django.utils import timezone
+        qs = self.get_queryset()
+        completed_secs = qs.filter(end_time__isnull=False).aggregate(total=Sum("duration_seconds"))["total"] or 0
+        now = timezone.now()
+        active_secs = 0
+        for ae in qs.filter(end_time__isnull=True):
+            if ae.start_time:
+                active_secs += max(0, int((now - ae.start_time).total_seconds()))
+        total_secs = completed_secs + active_secs
+        hours = round(total_secs / 3600.0, 2)
+        return success_response("Time entries fetched successfully", {
+            "total_duration_seconds": total_secs,
+            "completed_duration_seconds": completed_secs,
+            "active_duration_seconds": active_secs,
+            "total_hours": hours,
+            "entries": response.data,
+        })
+
+    def create(self, request, *args, **kwargs):
+        task = self.get_task()
+        data = request.data
+        desc = data.get("description", "").strip()
+
+        start_str = data.get("start_time")
+        end_str = data.get("end_time")
+        duration_minutes = data.get("duration_minutes")
+        duration_seconds = data.get("duration_seconds")
+
+        now = timezone.now()
+        from django.utils.dateparse import parse_datetime
+        start = parse_datetime(start_str) if start_str else None
+        end = parse_datetime(end_str) if end_str else None
+
+        if not start and not end:
+            if duration_minutes or duration_seconds:
+                secs = int(duration_seconds or (float(duration_minutes) * 60))
+                end = now
+                start = now - timezone.timedelta(seconds=secs)
+            else:
+                start = now
+                end = now
+
+        if start and end and end < start:
+            from rest_framework.response import Response
+            return Response(
+                {"success": False, "message": "End time cannot be earlier than start time."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        final_secs = int((end - start).total_seconds()) if (start and end) else int(duration_seconds or 0)
+
+        entry = TimeEntry.objects.create(
+            task=task,
+            user=request.user,
+            start_time=start or now,
+            end_time=end or now,
+            duration_seconds=max(0, final_secs),
+            description=desc,
+        )
+
+        actor_name = request.user.get_full_name() or request.user.username
+        log_task_activity(task, request.user, "TIME_LOGGED", f"{actor_name} manually logged {max(0, final_secs) // 60}m")
+        return success_response("Time entry added successfully", TimeEntrySerializer(entry).data, status.HTTP_201_CREATED)
+
+
+class TimeEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET / PUT / PATCH / DELETE /api/time-entries/<pk>/
+    Allows employee to edit or delete their own time entry (Admins can do any).
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = TimeEntrySerializer
+    queryset = TimeEntry.objects.all().select_related("user", "task")
+
+    def get_object(self):
+        obj = super().get_object()
+        if self.request.user.role != User.Role.ADMIN and obj.user_id != self.request.user.id:
+            raise PermissionDenied("You can only edit or delete your own time entries.")
+        return obj
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        entry = self.get_object()
+        serializer = TimeEntryUpdateSerializer(entry, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        entry = serializer.save()
+        return success_response("Time entry updated successfully", TimeEntrySerializer(entry).data)
+
+    def destroy(self, request, *args, **kwargs):
+        entry = self.get_object()
+        task = entry.task
+        actor_name = request.user.get_full_name() or request.user.username
+        log_task_activity(task, request.user, "TIME_DELETED", f"{actor_name} deleted a time entry of {entry.duration_seconds // 60}m")
+        entry.delete()
+        return success_response("Time entry deleted successfully", status_code=status.HTTP_204_NO_CONTENT)
+
+
+class TimesheetView(generics.GenericAPIView):
+    """
+    GET /api/tasks/timesheet/
+    Query parameters:
+      - period: "daily" | "weekly" | "monthly" (default: "weekly")
+      - user_id: (optional, for Admin or Manager viewing team member)
+      - start_date, end_date: "YYYY-MM-DD"
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        target_user_id = request.query_params.get("user_id")
+
+        if target_user_id and user.role in (User.Role.ADMIN, User.Role.MANAGER):
+            target_user = get_object_or_404(User, pk=target_user_id)
+        else:
+            target_user = user
+
+        period = request.query_params.get("period", "weekly").lower()
+        now = timezone.localtime(timezone.now())
+        today = now.date()
+
+        start_date_param = request.query_params.get("start_date")
+        end_date_param = request.query_params.get("end_date")
+
+        from django.utils.dateparse import parse_date
+        if start_date_param and end_date_param:
+            start_date = parse_date(start_date_param) or (today - timezone.timedelta(days=7))
+            end_date = parse_date(end_date_param) or today
+        elif period == "daily":
+            start_date = today
+            end_date = today
+        elif period == "monthly":
+            start_date = today.replace(day=1)
+            end_date = today
+        else:
+            start_date = today - timezone.timedelta(days=today.weekday())
+            end_date = start_date + timezone.timedelta(days=6)
+
+        entries = TimeEntry.objects.filter(
+            user=target_user,
+            start_time__date__gte=start_date,
+            start_time__date__lte=end_date,
+            end_time__isnull=False,
+        ).select_related("task").order_by("-start_time")
+
+        from django.db.models import Sum
+        total_seconds = entries.aggregate(total=Sum("duration_seconds"))["total"] or 0
+        total_hours = round(total_seconds / 3600.0, 2)
+
+        from collections import defaultdict
+        daily_breakdown = defaultdict(lambda: {"date": "", "total_seconds": 0, "tasks": {}})
+        for entry in entries:
+            d_str = entry.start_time.strftime("%Y-%m-%d")
+            day_group = daily_breakdown[d_str]
+            day_group["date"] = d_str
+            day_group["total_seconds"] += entry.duration_seconds
+            t_id = entry.task_id
+            if t_id not in day_group["tasks"]:
+                day_group["tasks"][t_id] = {
+                    "task_id": t_id,
+                    "task_title": entry.task.title,
+                    "seconds": 0,
+                    "entries_count": 0,
+                }
+            day_group["tasks"][t_id]["seconds"] += entry.duration_seconds
+            day_group["tasks"][t_id]["entries_count"] += 1
+
+        days_list = []
+        for d_str, val in sorted(daily_breakdown.items(), reverse=True):
+            val["total_hours"] = round(val["total_seconds"] / 3600.0, 2)
+            val["tasks"] = list(val["tasks"].values())
+            days_list.append(val)
+
+        data = {
+            "user": {
+                "id": target_user.id,
+                "username": target_user.username,
+                "full_name": target_user.get_full_name() or target_user.username,
+            },
+            "period": period,
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+            "total_seconds": total_seconds,
+            "total_hours": total_hours,
+            "entries_count": entries.count(),
+            "daily_breakdown": days_list,
+            "entries": TimeEntrySerializer(entries, many=True).data,
+        }
+        return success_response("Timesheet fetched successfully", data)

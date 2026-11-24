@@ -96,7 +96,7 @@ if os.getenv("DATABASE_URL"):
             conn_health_checks=True,
         )
     }
-elif os.getenv("RENDER"):
+elif os.getenv("RENDER") or os.getenv("DB_ENGINE", "").lower() in ("sqlite", "sqlite3"):
     # Running on Render without a remote database URL - use SQLite so build succeeds
     DATABASES = {
         "default": {

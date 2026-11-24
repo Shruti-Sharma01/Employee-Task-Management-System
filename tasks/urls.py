@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    ActiveTimerView,
     AttachmentDeleteView,
     CompletedTasksView,
     MyTasksView,
@@ -19,6 +20,10 @@ from .views import (
     TaskListCreateView,
     TaskReassignView,
     TaskRejectView,
+    TaskTimeEntryListCreateView,
+    TaskTimerStartView,
+    TaskTimerStopView,
+    TimesheetView,
 )
 
 urlpatterns = [
@@ -30,6 +35,8 @@ urlpatterns = [
     path("overdue/", OverdueTasksView.as_view(), name="task-overdue"),
     path("completed/", CompletedTasksView.as_view(), name="task-completed"),
     path("pending/", PendingTasksView.as_view(), name="task-pending"),
+    path("timer/active/", ActiveTimerView.as_view(), name="active-timer"),
+    path("timesheet/", TimesheetView.as_view(), name="task-timesheet"),
     path("<int:pk>/", TaskDetailView.as_view(), name="task-detail"),
     path("<int:pk>/accept/", TaskAcceptView.as_view(), name="task-accept"),
     path("<int:pk>/reject/", TaskRejectView.as_view(), name="task-reject"),
@@ -39,4 +46,7 @@ urlpatterns = [
     path("<int:task_id>/comments/", TaskCommentListCreateView.as_view(), name="task-comments"),
     path("<int:task_id>/attachments/", TaskAttachmentListCreateView.as_view(), name="task-attachments"),
     path("<int:task_id>/activities/", TaskActivityListView.as_view(), name="task-activities"),
-]
+    path("<int:task_id>/timer/start/", TaskTimerStartView.as_view(), name="task-timer-start"),
+    path("<int:task_id>/timer/stop/", TaskTimerStopView.as_view(), name="task-timer-stop"),
+    path("<int:task_id>/time-entries/", TaskTimeEntryListCreateView.as_view(), name="task-time-entries"),
+]

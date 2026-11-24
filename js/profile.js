@@ -148,29 +148,22 @@ function processImageFile(file, maxSize = 250) {
 /**
  * Toast Notification for Quick Click confirmation
  */
-function showToast(message) {
+function showToast(message, type) {
+    if (typeof window.showToast === 'function' && window.showToast !== showToast) {
+        return window.showToast(message, type);
+    }
     let toast = document.getElementById('profileToast');
     if (!toast) {
         toast = document.createElement('div');
         toast.id = 'profileToast';
-        toast.style.cssText = `
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background-color: var(--color-sidebar, #08129C);
-            color: #FFFFFF;
-            padding: 12px 22px;
-            border-radius: 8px;
-            border-left: 4px solid var(--color-carolina-blue, #74B8FD);
-            box-shadow: 0 10px 25px rgba(8, 18, 156, 0.25);
-            font-size: 0.9rem;
-            font-weight: 500;
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        `;
+        toast.className = 'toast-item toast-info';
+        toast.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);z-index:9999999;';
         document.body.appendChild(toast);
     }
+    toast.textContent = message;
+    toast.style.display = 'inline-flex';
+    setTimeout(() => { toast.style.display = 'none'; }, 2500);
+}
 
     toast.textContent = message;
     toast.style.opacity = '1';

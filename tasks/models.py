@@ -301,4 +301,40 @@ class TaskActivity(models.Model):
         ]
 
     def __str__(self):
-        return f"Activity on Task #{self.task_id}: {self.message[:50]}"
+        return f"Activity on Task #{self.task_id}: {self.message[:50]}"
+
+
+class TimeEntry(models.Model):
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="time_entries",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="time_entries",
+    )
+    start_time = models.DateTimeField(default=timezone.now)
+    end_time = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.PositiveIntegerField(default=0)
+    description = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-start_time"]
+        indexes = [
+            models.Index(fields=["task", "-start_time"]),
+            models.Index(fields=["user", "-start_time"]),
+        ]
+
+    def __str__(self):
+        return f"TimeEntry #{self.id} on Task #{self.task_id} by {self.user}"
+
+    def stop(self):
+        if not self.end_time:
+            self.end_time = timezone.now()
+            delta = self.end_time - self.start_time
+            self.duration_seconds = max(0, int(delta.total_seconds()))
+            self.save(update_fields=["end_time", "duration_seconds", "updated_at"])

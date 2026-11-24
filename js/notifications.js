@@ -11,6 +11,160 @@
 (function () {
     'use strict';
 
+    // ── Universal Top-Center Toaster System ──────────────────────────────────
+    let toastContainer = null;
+    let knownNotifIds = new Set();
+    let isInitialNotifLoad = true;
+
+    function getOrCreateToastContainer() {
+        if (!toastContainer || !document.body || !document.body.contains(toastContainer)) {
+            toastContainer = document.getElementById('etmsToastContainer');
+            if (!toastContainer && document.body) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'etmsToastContainer';
+                toastContainer.className = 'toast-container-top-center';
+                document.body.appendChild(toastContainer);
+            }
+        }
+        return toastContainer;
+    }
+
+    window.showToast = function (message, type = 'info', duration = 3800) {
+        if (!message) return;
+        const container = getOrCreateToastContainer();
+        if (!container) return;
+
+        const str = String(message).trim();
+
+        // Auto-detect type if default
+        if (type === 'info') {
+            if (/✓|🎉|success|completed|saved|updated|created|accepted/i.test(str)) {
+                type = 'success';
+            } else if (/fail|error|could not|cannot|invalid|wrong|disabled|denied/i.test(str)) {
+                type = 'error';
+            } else if (/⚠️|warning|caution|must|please/i.test(str)) {
+                type = 'warning';
+            }
+        }
+
+        const icons = {
+            success: '✓',
+            error: '✕',
+            warning: '⚠️',
+            info: '🔔',
+        };
+        const icon = icons[type] || '🔔';
+
+        const toast = document.createElement('div');
+        toast.className = `toast-item toast-${type}`;
+        toast.innerHTML = `
+            <span class="toast-item-icon">${icon}</span>
+            <span class="toast-item-text">${escapeHtml(str)}</span>
+            <button type="button" class="toast-item-close" aria-label="Close">&times;</button>
+        `;
+
+        const removeToast = () => {
+            if (toast.classList.contains('toast-leaving')) return;
+            toast.classList.add('toast-leaving');
+            setTimeout(() => {
+                if (toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 260);
+        };
+
+        const closeBtn = toast.querySelector('.toast-item-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeToast();
+            });
+        }
+
+        container.appendChild(toast);
+
+        if (duration > 0) {
+            setTimeout(removeToast, duration);
+        }
+    };
+
+    // Override browser native alert() to display top-center toast
+    window.alert = function (message) {
+        window.showToast(message);
+    };
+
+    // ── Universal Top-Center Confirm Dialog ──────────────────────────────────
+    window.showConfirm = function (message, options = {}) {
+        return new Promise((resolve) => {
+            const existing = document.getElementById('etmsConfirmOverlay');
+            if (existing) existing.remove();
+
+            const opts = typeof options === 'string' ? { confirmText: options } : (options || {});
+            const confirmText = opts.confirmText || 'OK';
+            const cancelText = opts.cancelText || 'Cancel';
+            const isDelete = /delete|remove|abort/i.test(message);
+            const isComplete = /complet/i.test(message);
+            const confirmBtnClass = isDelete ? 'confirm-btn-danger' : 'confirm-btn-primary';
+            const icon = isDelete ? '🗑️' : (isComplete ? '✅' : (opts.icon || '❓'));
+
+            const overlay = document.createElement('div');
+            overlay.id = 'etmsConfirmOverlay';
+            overlay.className = 'confirm-modal-overlay';
+            overlay.innerHTML = `
+                <div class="confirm-modal-card" role="dialog" aria-modal="true">
+                    <div class="confirm-modal-body">
+                        <span class="confirm-modal-icon">${icon}</span>
+                        <div class="confirm-modal-text">${escapeHtml(message)}</div>
+                    </div>
+                    <div class="confirm-modal-actions">
+                        <button type="button" class="confirm-btn-cancel" id="etmsConfirmCancelBtn">${escapeHtml(cancelText)}</button>
+                        <button type="button" class="${confirmBtnClass}" id="etmsConfirmOkBtn">${escapeHtml(confirmText)}</button>
+                    </div>
+                </div>
+            `;
+
+            let resolved = false;
+            function cleanup(result) {
+                if (resolved) return;
+                resolved = true;
+                document.removeEventListener('keydown', onKeyDown);
+                overlay.classList.add('confirm-leaving');
+                setTimeout(() => {
+                    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                    resolve(result);
+                }, 180);
+            }
+
+            function onKeyDown(e) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cleanup(false);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    cleanup(true);
+                }
+            }
+
+            document.addEventListener('keydown', onKeyDown);
+
+            overlay.querySelector('#etmsConfirmCancelBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                cleanup(false);
+            });
+            overlay.querySelector('#etmsConfirmOkBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                cleanup(true);
+            });
+
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) cleanup(false);
+            });
+
+            document.body.appendChild(overlay);
+            const okBtn = overlay.querySelector('#etmsConfirmOkBtn');
+            if (okBtn) okBtn.focus();
+        });
+    };
+    window.customConfirm = window.showConfirm;
+
     // ── Config ──────────────────────────────────────────────────────────────
     const POLL_INTERVAL_MS = 30000;   // re-fetch every 30 seconds
     let   pollTimer        = null;
@@ -131,6 +285,18 @@
         const list    = document.getElementById('notifList');
         const footer  = document.getElementById('notifFooterText');
         if (!list) return;
+
+        // If background polling found new unread notifications, show top-center toaster
+        if (!isInitialNotifLoad) {
+            notifications.forEach(n => {
+                if (!n.is_read && !knownNotifIds.has(n.id)) {
+                    const text = n.title ? `${n.title}: ${n.message}` : n.message;
+                    window.showToast(text, 'info');
+                }
+            });
+        }
+        knownNotifIds = new Set(notifications.map(n => n.id));
+        isInitialNotifLoad = false;
 
         if (notifications.length === 0) {
             list.innerHTML = `

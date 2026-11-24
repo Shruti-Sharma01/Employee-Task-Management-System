@@ -3,7 +3,7 @@ from rest_framework import serializers
 from accounts.models import User
 from employees.models import Employee
 
-from .models import Task, TaskActivity, TaskAttachment, TaskComment
+from .models import Task, TaskActivity, TaskAttachment, TaskComment, TimeEntry
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -12,6 +12,9 @@ class TaskSerializer(serializers.ModelSerializer):
     assigned_to = serializers.SerializerMethodField()
     assigned_by = serializers.SerializerMethodField()
     is_overdue = serializers.SerializerMethodField()
+    completed_duration_seconds = serializers.SerializerMethodField()
+    total_duration_seconds = serializers.SerializerMethodField()
+    active_timer = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -19,7 +22,8 @@ class TaskSerializer(serializers.ModelSerializer):
             "id", "title", "description", "assigned_to", "assigned_by",
             "priority", "status", "status_reason", "category", "start_date", "deadline",
             "accepted_at", "completed_at", "rejected_at", "aborted_at",
-            "is_overdue", "created_at", "updated_at",
+            "is_overdue", "completed_duration_seconds", "total_duration_seconds", "active_timer",
+            "created_at", "updated_at",
         ]
 
     def get_assigned_to(self, obj):
@@ -42,6 +46,38 @@ class TaskSerializer(serializers.ModelSerializer):
             and obj.deadline < timezone.localdate()
             and obj.status in (Task.Status.PENDING, Task.Status.IN_PROGRESS)
         )
+
+    def get_completed_duration_seconds(self, obj):
+        from django.db.models import Sum
+        return obj.time_entries.filter(end_time__isnull=False).aggregate(total=Sum("duration_seconds"))["total"] or 0
+
+    def get_total_duration_seconds(self, obj):
+        from django.db.models import Sum
+        from django.utils import timezone
+        completed = obj.time_entries.filter(end_time__isnull=False).aggregate(total=Sum("duration_seconds"))["total"] or 0
+        now = timezone.now()
+        active_secs = 0
+        for ae in obj.time_entries.filter(end_time__isnull=True):
+            if ae.start_time:
+                active_secs += max(0, int((now - ae.start_time).total_seconds()))
+        return completed + active_secs
+
+    def get_active_timer(self, obj):
+        request = self.context.get("request")
+        user = request.user if request and request.user.is_authenticated else None
+        active = None
+        if user:
+            active = obj.time_entries.filter(user=user, end_time__isnull=True).first()
+        if not active:
+            active = obj.time_entries.filter(end_time__isnull=True).first()
+        if active:
+            return {
+                "id": active.id,
+                "start_time": active.start_time.isoformat(),
+                "description": active.description,
+                "user_id": active.user_id,
+            }
+        return None
 
 
 class TaskWriteSerializer(serializers.ModelSerializer):
@@ -95,11 +131,22 @@ class TaskWriteSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(
                         "Managers can only assign tasks to employees, not to other managers or admins."
                     )
-                # Team check: employee must belong to this manager's team
-                if employee.manager_id != profile.pk:
+                # Team check: employee must belong to this manager's team (either direct reporting or same department)
+                is_same_team = (
+                    employee.manager_id == profile.pk or
+                    (
+                        employee.department and profile.department and
+                        employee.department.strip().lower() == profile.department.strip().lower()
+                    )
+                )
+                if not is_same_team:
                     raise serializers.ValidationError(
                         "You can only assign tasks to employees in your team."
                     )
+                # Automatically link employee to manager if not already linked
+                if employee.manager_id is None and employee.pk != profile.pk:
+                    employee.manager = profile
+                    employee.save(update_fields=["manager"])
         return employee
 
     def validate(self, attrs):
@@ -218,4 +265,44 @@ class TaskActivitySerializer(serializers.ModelSerializer):
             "username": u.username,
             "full_name": full_name,
             "role": u.role,
-        }
+        }
+
+
+class TimeEntrySerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+    task_title = serializers.CharField(source="task.title", read_only=True)
+
+    class Meta:
+        model = TimeEntry
+        fields = [
+            "id", "task", "task_title", "user", "start_time", "end_time",
+            "duration_seconds", "description", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "task", "user", "duration_seconds", "created_at", "updated_at"]
+
+    def get_user(self, obj):
+        u = obj.user
+        if not u:
+            return None
+        full_name = f"{u.first_name} {u.last_name}".strip() or u.username
+        return {
+            "id": u.id,
+            "username": u.username,
+            "full_name": full_name,
+            "role": u.role,
+        }
+
+
+class TimeEntryUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TimeEntry
+        fields = ["description", "start_time", "end_time", "duration_seconds"]
+
+    def validate(self, attrs):
+        start = attrs.get("start_time", getattr(self.instance, "start_time", None))
+        end = attrs.get("end_time", getattr(self.instance, "end_time", None))
+        if start and end and end < start:
+            raise serializers.ValidationError({"end_time": "End time cannot be earlier than start time."})
+        if start and end:
+            attrs["duration_seconds"] = max(0, int((end - start).total_seconds()))
+        return attrs

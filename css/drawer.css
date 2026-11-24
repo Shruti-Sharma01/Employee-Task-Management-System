@@ -1449,3 +1449,205 @@ html.dark-theme .btn-drawer-reject:hover:not(:disabled) {
     background: #DC2626;
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
 }
+
+
+/* ── Time Tracking Styles ── */
+.drawer-timer-box {
+    background: var(--color-bg-secondary, #f8fafc);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 8px;
+}
+
+.timer-running-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #ef4444;
+    display: inline-block;
+    animation: timerPulse 1.2s infinite ease-in-out;
+}
+
+@keyframes timerPulse {
+    0% { transform: scale(0.95); opacity: 0.7; }
+    50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 8px rgba(239, 68, 68, 0.8); }
+    100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+.btn-timer-start {
+    background: #16a34a;
+    color: #ffffff;
+    border: none;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+
+.btn-timer-start:hover {
+    background: #15803d;
+}
+
+.btn-timer-stop {
+    background: #dc2626;
+    color: #ffffff;
+    border: none;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    animation: timerPulse 2s infinite ease-in-out;
+}
+
+.btn-timer-stop:hover {
+    background: #b91c1c;
+}
+
+.time-entry-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-border, #f1f5f9);
+    font-size: 0.82rem;
+}
+
+.time-entry-item:last-child {
+    border-bottom: none;
+}
+
+.time-entry-dur {
+    font-weight: 600;
+    color: #2563eb;
+    background: rgba(37, 99, 235, 0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+
+/* ── Modern Automatic Timer Box & Badges ── */
+.drawer-timer-box-modern {
+    background: linear-gradient(135deg, rgba(241, 245, 249, 0.9) 0%, rgba(248, 250, 252, 0.9) 100%);
+    border: 1px solid var(--color-border, #cbd5e1);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+html.dark-theme .drawer-timer-box-modern {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.7) 0%, rgba(30, 41, 59, 0.7) 100%);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.timer-display-wrap {
+    display: inline-flex;
+    align-items: center;
+    background: #0f172a;
+    padding: 6px 14px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.timer-digital-clock {
+    font-family: 'SF Mono', 'Fira Code', 'Roboto Mono', monospace;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #38bdf8;
+    letter-spacing: 2px;
+}
+
+.timer-status-chip {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.timer-status-chip.running {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    animation: timerPulse 1.5s infinite ease-in-out;
+}
+
+.timer-status-chip.paused {
+    background: rgba(148, 163, 184, 0.15);
+    color: #64748b;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.btn-timer-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-timer-resume {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+
+.btn-timer-resume:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    transform: translateY(-1px);
+}
+
+.btn-timer-pause {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+}
+
+.btn-timer-pause:hover {
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    transform: translateY(-1px);
+}
+
+.drawer-time-logs-list {
+    margin-top: 10px;
+    max-height: 140px;
+    overflow-y: auto;
+    background: var(--color-surface, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 8px;
+    padding: 2px 0;
+}
+
+.time-pill-badge {
+    font-size: 0.78rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(37, 99, 235, 0.18) 100%);
+    color: #2563eb;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+html.dark-theme .time-pill-badge {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.3);
+}

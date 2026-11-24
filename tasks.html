@@ -64,12 +64,17 @@
                 });
             });
         })();
+        (function() {
+            if (localStorage.getItem('etm_sidebar_collapsed') === 'true') {
+                document.documentElement.classList.add('sidebar-collapsed-pref');
+            }
+        })();
     </script>
-    <link rel="stylesheet" href="css/style.css?v=2.6">
-    <link rel="stylesheet" href="css/notifications.css?v=1.0">
-    <link rel="stylesheet" href="css/drawer.css?v=3.1">
+    <link rel="stylesheet" href="css/style.css?v=4.4">
+    <link rel="stylesheet" href="css/notifications.css?v=2.1">
+    <link rel="stylesheet" href="css/drawer.css?v=4.4">
     <link rel="stylesheet" href="css/theme.css?v=1.3">
-    <link rel="stylesheet" href="css/responsive.css?v=2.4">
+    <link rel="stylesheet" href="css/responsive.css?v=2.5">
 </head>
 <body>
 
@@ -91,11 +96,17 @@
     <div class="layout">
 
         <aside class="sidebar" id="sidebar">
+            <div class="sidebar-toggle-wrapper">
+                <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Minimize / Expand Sidebar" aria-label="Minimize / Expand Sidebar">
+                    <span class="toggle-icon">◀</span>
+                    <span class="toggle-text">Minimize</span>
+                </button>
+            </div>
             <ul>
-                <li><a href="dashboard.html">Dashboard</a></li>
-                <li><a href="tasks.html" class="active">My Tasks</a></li>
-                <li><a href="profile.html">Profile</a></li>
-                <li><a href="login.html" onclick="logoutUser(event)">Logout</a></li>
+                <li><a href="dashboard.html" title="Dashboard"><span class="nav-icon">📊</span><span class="nav-text">Dashboard</span></a></li>
+                <li><a href="tasks.html" class="active" title="My Tasks"><span class="nav-icon">📋</span><span class="nav-text">My Tasks</span></a></li>
+                <li><a href="profile.html" title="Profile"><span class="nav-icon">👤</span><span class="nav-text">Profile</span></a></li>
+                <li><a href="login.html" onclick="logoutUser(event)" title="Logout"><span class="nav-icon">🚪</span><span class="nav-text">Logout</span></a></li>
             </ul>
         </aside>
 
@@ -148,6 +159,9 @@
                             </button>
                         </div>
                     </div>
+                    <button class="btn btn-secondary" id="openTimesheetBtn" onclick="openTimesheetModal()" style="display:flex;align-items:center;gap:6px;">
+                        ⏱️ Timesheet
+                    </button>
                     <button class="btn btn-primary" id="openAddTaskBtn">+ Add Task</button>
 
 
@@ -292,7 +306,7 @@
                     </div>
 
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">Save Task</button>
+                        <button type="submit" class="btn btn-primary" id="taskSubmitBtn">Save Task</button>
                         <button type="button" class="btn btn-secondary" id="cancelTaskBtn">Cancel</button>
                     </div>
                 </form>
@@ -303,12 +317,13 @@
                 <table class="tasks-table" id="tasksTable">
                     <thead>
                         <tr>
-                            <th>Task Title</th>
-                            <th>Category</th>
-                            <th>Priority</th>
-                            <th>Due Date</th>
-                            <th>Status</th>
-                            <th>Actions</th>
+                            <th style="min-width: 180px;">Task Title</th>
+                            <th style="min-width: 100px;">Category</th>
+                            <th style="min-width: 110px;">Priority</th>
+                            <th style="min-width: 120px;">Due Date</th>
+                            <th style="min-width: 115px;">Time Spent</th>
+                            <th style="min-width: 125px;">Status</th>
+                            <th style="min-width: 220px; text-align: right;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="tasksTableBody">
@@ -438,19 +453,41 @@
                 </div>
             </div>
 
+        
+            <!-- Timesheet Modal -->
+            <div class="modal" id="timesheetModal" hidden>
+                <div class="modal-content" style="max-width: 650px; width: 90%;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                        <h3 style="margin:0;">⏱️ Timesheet Report</h3>
+                        <button type="button" class="btn btn-secondary" onclick="closeTimesheetModal()" style="padding:2px 8px;font-size:1rem;cursor:pointer;">✕</button>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-bottom:14px;align-items:center;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-primary timesheet-period-btn" id="periodDailyBtn" onclick="loadTimesheet('daily')">Today</button>
+                        <button type="button" class="btn btn-secondary timesheet-period-btn" id="periodWeeklyBtn" onclick="loadTimesheet('weekly')">This Week</button>
+                        <button type="button" class="btn btn-secondary timesheet-period-btn" id="periodMonthlyBtn" onclick="loadTimesheet('monthly')">This Month</button>
+                        <span id="timesheetTotalHoursBadge" style="margin-left:auto;font-weight:700;font-size:0.95rem;color:#16a34a;background:rgba(22,163,74,0.1);padding:4px 12px;border-radius:20px;">
+                            Total: 0.0 hrs
+                        </span>
+                    </div>
+                    <div id="timesheetContent" style="max-height: 380px; overflow-y: auto;">
+                        <div style="text-align:center;padding:2rem;color:var(--color-text-muted);">Loading timesheet...</div>
+                    </div>
+                </div>
+            </div>
+
         </main>
 
     </div>
 
     <script src="js/api.js?v=2.3"></script>
-    <script src="js/storage.js?v=2.4"></script>
-    <script src="js/nav.js?v=2.2"></script>
+    <script src="js/notifications.js?v=2.1"></script>
+    <script src="js/storage.js?v=2.5"></script>
+    <script src="js/nav.js?v=2.3"></script>
     <script src="js/role-ui.js?v=1.2"></script>
     <script src="js/theme.js?v=1.3"></script>
-    <script src="js/drawer.js?v=3.7"></script>
-    <script src="js/tasks.js?v=3.7"></script>
+    <script src="js/drawer.js?v=4.7"></script>
+    <script src="js/tasks.js?v=4.7"></script>
     <script src="js/export.js?v=1.1"></script>
-    <script src="js/notifications.js?v=1.0"></script>
 
 </body>
 </html>

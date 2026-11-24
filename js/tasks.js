@@ -3,7 +3,28 @@
  * Full controller for Task Management page: CRUD, Search, Filter, Sort, Kanban & Table views
  */
 
+window.formatTimeDuration = function(seconds) {
+    if (!seconds || seconds <= 0) return '0h 00m';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}h ${m < 10 ? '0' : ''}${m}m`;
+    if (m > 0) return `${m}m ${s < 10 ? '0' : ''}${s}s`;
+    return `${s}s`;
+};
+
 document.addEventListener('DOMContentLoaded', () => {
+    // ── Duration Formatter (Top-level scope) ──
+    function formatTimeDuration(seconds) {
+        if (!seconds || seconds <= 0) return '0h 00m';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        if (h > 0) return `${h}h ${m < 10 ? '0' : ''}${m}m`;
+        if (m > 0) return `${m}m ${s < 10 ? '0' : ''}${s}s`;
+        return `${s}s`;
+    }
+    window.formatTimeDuration = formatTimeDuration;
     if (typeof checkAuth === 'function' && !checkAuth()) return;
 
     let taskToDeleteId = null;
@@ -418,6 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             closeForm();
+
             if (typeof fetchTasksFromAPI === 'function') {
                 try { await fetchTasksFromAPI(); } catch (e) {}
             }
@@ -428,7 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 window._drawerReloadAttachments(targetId);
             }
         } catch (err) {
-            alert('Please accept the assigned task from the Notes section before proceeding.');
+            alert(err.message || 'Failed to save task.');
         } finally {
             if (taskSubmitBtn) {
                 taskSubmitBtn.disabled    = false;
@@ -678,6 +700,49 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTasks() {
         if (currentViewMode === 'kanban') renderKanban();
         else                              renderTableTasks();
+        startLiveTaskTimers();
+    }
+
+    let liveTaskTimerInterval = null;
+
+    function startLiveTaskTimers() {
+        if (liveTaskTimerInterval) {
+            clearInterval(liveTaskTimerInterval);
+            liveTaskTimerInterval = null;
+        }
+
+        const tick = () => {
+            const tasks = getFilteredTasks();
+            let hasActive = false;
+
+            tasks.forEach(task => {
+                if (task.active_timer && task.active_timer.start_time) {
+                    hasActive = true;
+                    const startMs = new Date(task.active_timer.start_time).getTime();
+                    const activeElapsed = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+                    const currentTotal = Math.max(task.total_duration_seconds || 0, (task.completed_duration_seconds || 0) + activeElapsed);
+
+                    // Update in Table
+                    const tableVal = document.querySelector(`#task-time-badge-${task.id} .task-time-val`);
+                    if (tableVal) {
+                        tableVal.textContent = formatTimeDuration(currentTotal);
+                    }
+
+                    // Update in Kanban
+                    const kanbanVal = document.querySelector(`#kanban-time-badge-${task.id} .task-time-val`);
+                    if (kanbanVal) {
+                        kanbanVal.textContent = formatTimeDuration(currentTotal);
+                    }
+                }
+            });
+
+            if (!hasActive && liveTaskTimerInterval) {
+                clearInterval(liveTaskTimerInterval);
+                liveTaskTimerInterval = null;
+            }
+        };
+
+        liveTaskTimerInterval = setInterval(tick, 1000);
     }
 
     if (tableViewBtn)  tableViewBtn.addEventListener('click',  () => setViewMode('table'));
@@ -693,7 +758,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tasks.length === 0) {
             tasksTableBody.innerHTML = `
                 <tr>
-                    <td colspan="6" style="text-align:center;padding:2rem;color:var(--color-text-muted);">
+                    <td colspan="7" style="text-align:center;padding:2rem;color:var(--color-text-muted);">
                         No tasks match your filter criteria.
                     </td>
                 </tr>`;
@@ -725,55 +790,81 @@ document.addEventListener('DOMContentLoaded', () => {
             const taskRawStatus = (task.status || '').toLowerCase().replace('_', '-');
 
             let actionsHtml = `
-                <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
+                <button type="button" class="btn-action-pill btn-notes-pill"
                     onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion &amp; Attachments">💬 Notes</button>
             `;
             if (isEmp && isAssignee) {
                 if (taskRawStatus === 'pending') {
                     actionsHtml += `
-                        <button type="button" class="btn btn-primary btn-accept-task" style="padding:4px 10px;font-size:0.78rem;background:#16a34a;border-color:#16a34a;color:#fff;font-weight:600;"
-                            onclick="handleAcceptTaskCard(event, '${escapeHtml(task.id)}')">✓ Accept</button>
-                        <button type="button" class="btn btn-danger" style="padding:4px 8px;font-size:0.78rem;"
+                        <button type="button" class="btn-action-pill btn-accept-pill"
+                            onclick="handleAcceptTaskCard(event, '${escapeHtml(task.id)}')">✓ Accept &amp; Start</button>
+                        <button type="button" class="btn-action-pill btn-reject-pill"
                             onclick="openRejectModalHandler(event, '${escapeHtml(task.id)}', '${escapeHtml(task.title)}')">&#x2715; Reject</button>
                     `;
                 } else if (taskRawStatus === 'in-progress') {
                     actionsHtml += `
-                        <button type="button" class="btn btn-primary" style="padding:4px 10px;font-size:0.78rem;background:#16a34a;border-color:#16a34a;color:#fff;font-weight:600;"
+                        <button type="button" class="btn-action-pill btn-complete-pill"
                             onclick="handleCompleteTaskCard(event, '${escapeHtml(task.id)}')">✓ Complete</button>
-                        <button type="button" class="btn btn-danger" style="padding:4px 8px;font-size:0.78rem;"
+                        <button type="button" class="btn-action-pill btn-abort-pill"
                             onclick="openAbortModalHandler(event, '${escapeHtml(task.id)}', '${escapeHtml(task.title)}')">&#x2298; Abort</button>
                     `;
                 }
-                // locked statuses: no extra action buttons
             } else if (!isEmp) {
                 actionsHtml += `
-                    <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;"
+                    <button type="button" class="btn-action-pill btn-edit-pill"
                         onclick="editTaskHandler('${escapeHtml(task.id)}')">${editLabel}</button>
                 `;
             }
             if (canDelete) {
                 actionsHtml += `
-                    <button type="button" class="btn btn-danger" style="padding:4px 8px;font-size:0.78rem;"
+                    <button type="button" class="btn-action-pill btn-delete-pill"
                         onclick="openDeleteModalHandler('${escapeHtml(task.id)}')">Delete</button>
                 `;
+            }
+
+            // Automatic Timer Controls (only for the assigned employee when task is in-progress)
+            if (isAssignee && taskRawStatus === 'in-progress') {
+                if (task.active_timer) {
+                    actionsHtml += `
+                        <button type="button" class="btn-action-pill btn-timer-pill-active"
+                            onclick="handleToggleTaskTimer(event, '${escapeHtml(task.id)}', true)" title="Pause Timer">⏸ Pause</button>
+                    `;
+                } else {
+                    actionsHtml += `
+                        <button type="button" class="btn-action-pill btn-timer-pill-idle"
+                            onclick="handleToggleTaskTimer(event, '${escapeHtml(task.id)}', false)" title="Resume Timer">▶ Resume</button>
+                    `;
+                }
+            }
+
+            let currentTotalSecs = task.total_duration_seconds || 0;
+            if (task.active_timer && task.active_timer.start_time) {
+                const startMs = new Date(task.active_timer.start_time).getTime();
+                const activeElapsed = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+                currentTotalSecs = Math.max(currentTotalSecs, (task.completed_duration_seconds || 0) + activeElapsed);
             }
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>
-                    <div style="font-weight:600;color:var(--color-primary);cursor:pointer;display:inline-flex;align-items:center;gap:6px;"
+                    <div style="font-weight:600;font-size:0.92rem;color:var(--color-primary);cursor:pointer;display:inline-flex;align-items:center;gap:6px;"
                          onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Click to open discussion and attachments">
                         <span>${escapeHtml(task.title)}</span>
-                        <span style="font-size:0.85rem;" title="Discussion & Notes">💬</span>
                     </div>
-                    ${task.description ? `<div style="font-size:0.8rem;color:var(--color-text-muted);margin-top:2px;">${escapeHtml(task.description)}</div>` : ''}
+                    ${task.description ? `<div style="font-size:0.8rem;color:var(--color-text-muted);margin-top:2px;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(task.description)}</div>` : ''}
                 </td>
-                <td>${escapeHtml(capitalize(task.category || 'General'))}</td>
-                <td>${getPriorityBadge(task.priority)}</td>
-                <td>${escapeHtml(task.dueDate || '-')}</td>
-                <td>${getStatusBadge(task.status)}</td>
-                <td>
-                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                <td style="white-space:nowrap;"><span class="kanban-card-category" style="font-weight:600;font-size:0.75rem;padding:3px 8px;border-radius:6px;">${escapeHtml(capitalize(task.category || 'General'))}</span></td>
+                <td style="white-space:nowrap;">${getPriorityBadge(task.priority)}</td>
+                <td style="white-space:nowrap;"><span style="font-size:0.82rem;font-weight:500;">📅 ${escapeHtml(task.dueDate || '-')}</span></td>
+                <td style="white-space:nowrap;">
+                    <span class="time-pill-badge" id="task-time-badge-${escapeHtml(task.id)}" style="cursor:pointer;" onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Click to view work timer">
+                        ⏱️ <span class="task-time-val">${formatTimeDuration(currentTotalSecs)}</span>
+                        ${task.active_timer ? '<span class="timer-running-dot" style="margin-left:4px;" title="Timer active"></span>' : ''}
+                    </span>
+                </td>
+                <td style="white-space:nowrap;">${getStatusBadge(task.status)}</td>
+                <td style="white-space:nowrap;text-align:right;">
+                    <div style="display:inline-flex;gap:6px;align-items:center;flex-wrap:nowrap;justify-content:flex-end;">
                         ${actionsHtml}
                     </div>
                 </td>`;
@@ -856,54 +947,77 @@ document.addEventListener('DOMContentLoaded', () => {
             card.setAttribute('data-status', statusKey);
 
             let cardActionsHtml = `
-                <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
+                <button type="button" class="btn-action-pill btn-notes-pill" style="font-size:0.72rem;padding:3px 8px;"
                     onclick="openTaskDrawer('${escapeHtml(task.id)}')" title="Discussion &amp; Attachments">💬 Notes</button>
             `;
 
             if (isEmp && isAssignee) {
                 if (statusKey === 'pending') {
                     cardActionsHtml += `
-                        <button type="button" class="btn btn-primary btn-accept-task" style="font-size:0.75rem;padding:3px 10px;background:#16a34a;border-color:#16a34a;color:#fff;font-weight:600;"
-                            onclick="handleAcceptTaskCard(event, '${escapeHtml(task.id)}')">✓ Accept</button>
-                        <button type="button" class="btn btn-danger" style="font-size:0.75rem;padding:3px 8px;"
+                        <button type="button" class="btn-action-pill btn-accept-pill" style="font-size:0.72rem;padding:3px 9px;"
+                            onclick="handleAcceptTaskCard(event, '${escapeHtml(task.id)}')">✓ Accept &amp; Start</button>
+                        <button type="button" class="btn-action-pill btn-reject-pill" style="font-size:0.72rem;padding:3px 7px;"
                             onclick="openRejectModalHandler(event, '${escapeHtml(task.id)}', '${escapeHtml(task.title)}')">&#x2715; Reject</button>
                     `;
                 } else if (statusKey === 'in-progress') {
                     cardActionsHtml += `
-                        <button type="button" class="btn btn-primary" style="font-size:0.75rem;padding:3px 10px;background:#16a34a;border-color:#16a34a;color:#fff;font-weight:600;"
+                        <button type="button" class="btn-action-pill btn-complete-pill" style="font-size:0.72rem;padding:3px 9px;"
                             onclick="handleCompleteTaskCard(event, '${escapeHtml(task.id)}')">✓ Complete</button>
-                        <button type="button" class="btn btn-danger" style="font-size:0.75rem;padding:3px 8px;"
+                        <button type="button" class="btn-action-pill btn-abort-pill" style="font-size:0.72rem;padding:3px 7px;"
                             onclick="openAbortModalHandler(event, '${escapeHtml(task.id)}', '${escapeHtml(task.title)}')">&#x2298; Abort</button>
                     `;
                 }
-                // locked statuses: no extra buttons
             } else if (!isEmp) {
                 cardActionsHtml += `
-                    <button type="button" class="btn btn-secondary" style="font-size:0.75rem;padding:3px 8px;"
+                    <button type="button" class="btn-action-pill btn-edit-pill" style="font-size:0.72rem;padding:3px 8px;"
                         onclick="editTaskHandler('${escapeHtml(task.id)}')">${editLabel}</button>
                 `;
             }
             if (canDelete) {
                 cardActionsHtml += `
-                    <button type="button" class="btn btn-danger" style="font-size:0.75rem;padding:3px 8px;"
+                    <button type="button" class="btn-action-pill btn-delete-pill" style="font-size:0.72rem;padding:3px 7px;"
                         onclick="openDeleteModalHandler('${escapeHtml(task.id)}')">Delete</button>
                 `;
+            }
+
+            if (statusKey === 'in-progress' && isAssignee) {
+                if (task.active_timer) {
+                    cardActionsHtml += `
+                        <button type="button" class="btn-action-pill btn-timer-pill-active" style="font-size:0.7rem;padding:3px 7px;"
+                            onclick="handleToggleTaskTimer(event, '${escapeHtml(task.id)}', true)" title="Pause Timer">⏸ Pause</button>
+                    `;
+                } else {
+                    cardActionsHtml += `
+                        <button type="button" class="btn-action-pill btn-timer-pill-idle" style="font-size:0.7rem;padding:3px 7px;"
+                            onclick="handleToggleTaskTimer(event, '${escapeHtml(task.id)}', false)" title="Resume Timer">▶ Resume</button>
+                    `;
+                }
+            }
+
+            let kanbanTotalSecs = task.total_duration_seconds || 0;
+            if (task.active_timer && task.active_timer.start_time) {
+                const startMs = new Date(task.active_timer.start_time).getTime();
+                const activeElapsed = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+                kanbanTotalSecs = Math.max(kanbanTotalSecs, (task.completed_duration_seconds || 0) + activeElapsed);
             }
 
             card.innerHTML = `
                 <div class="kanban-card-title" onclick="openTaskDrawer('${escapeHtml(task.id)}')" 
                      style="cursor:pointer;" title="Click to view details & discussion">
                     <span>${escapeHtml(task.title)}</span>
-                    <span style="font-size:0.85rem;margin-left:4px;color:var(--color-primary);">💬</span>
                 </div>
                 ${task.description ? `<div class="kanban-card-desc">${escapeHtml(task.description)}</div>` : ''}
                 <div class="kanban-card-meta">
                     <span class="kanban-card-category">${escapeHtml(capitalize(task.category || 'General'))}</span>
                     <span>${getPriorityBadge(task.priority)}</span>
-                    ${isPending ? `<span class="badge badge-warning" style="background:#FEF08A;color:#854D0E;border:1px solid #FDE047;font-size:0.68rem;padding:2px 6px;font-weight:600;">Pending</span>` : ''}
+                    ${isPending ? `<span class="badge-pill-status pending" style="font-size:0.68rem;padding:2px 7px;">⏳ Pending</span>` : ''}
                 </div>
                 <div class="kanban-card-meta" style="border-top:none;padding-top:4px;">
                     <span title="Due Date">📅 ${escapeHtml(task.dueDate || 'No due date')}</span>
+                    <span title="Total Time Spent" class="time-pill-badge" id="kanban-time-badge-${escapeHtml(task.id)}" style="font-size:0.7rem;">
+                        ⏱️ <span class="task-time-val">${formatTimeDuration(kanbanTotalSecs)}</span>
+                        ${task.active_timer ? '<span class="timer-running-dot" style="margin-left:3px;"></span>' : ''}
+                    </span>
                 </div>
                 <div class="kanban-card-actions">
                     ${cardActionsHtml}
@@ -1037,27 +1151,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // ─────────────────────────────────────────────────────────────────────────
     // Toast Notification Helper
     // ─────────────────────────────────────────────────────────────────────────
-    function showToast(message) {
+    function showToast(message, type) {
+        if (typeof window.showToast === 'function' && window.showToast !== showToast) {
+            return window.showToast(message, type);
+        }
         let toast = document.getElementById('etmsToast');
         if (!toast) {
             toast = document.createElement('div');
             toast.id = 'etmsToast';
-            toast.style.cssText = `
-                position: fixed; bottom: 24px; right: 24px; z-index: 99999;
-                background: #1e3a5f; color: #fff; padding: 12px 20px;
-                border-radius: 8px; font-size: 0.9rem; font-weight: 600;
-                box-shadow: 0 4px 16px rgba(0,0,0,0.25); transition: opacity 0.3s ease;
-                display: flex; align-items: center; gap: 8px;
-            `;
+            toast.className = 'toast-item toast-info';
+            toast.style.cssText = `position:fixed;top:24px;left:50%;transform:translateX(-50%);z-index:9999999;`;
             document.body.appendChild(toast);
         }
         toast.textContent = message;
-        toast.style.opacity = '1';
-        toast.style.display = 'flex';
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            setTimeout(() => { toast.style.display = 'none'; }, 300);
-        }, 3000);
+        toast.style.display = 'inline-flex';
+        setTimeout(() => { toast.style.display = 'none'; }, 3000);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1089,7 +1197,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             renderTasks();
-            showToast('Task accepted! Moved to In Progress. 🚀');
+            showToast('Task accepted! Timer started automatically. ⏱️🚀');
 
             if (typeof fetchTasksFromAPI === 'function') {
                 try { await fetchTasksFromAPI(); renderTasks(); } catch (_) {}
@@ -1108,7 +1216,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // ─────────────────────────────────────────────────────────────────────────
     window.handleCompleteTaskCard = async function(e, taskId) {
         if (e && e.stopPropagation) e.stopPropagation();
-        if (!confirm('Are you sure you want to mark this task as completed?')) return;
+        const ok = typeof window.showConfirm === 'function'
+            ? await window.showConfirm('Are you sure you want to mark this task as completed?')
+            : confirm('Are you sure you want to mark this task as completed?');
+        if (!ok) return;
         const btn = e?.currentTarget || e?.target;
         if (btn) { btn.disabled = true; btn.textContent = 'Completing…'; }
 
@@ -1266,35 +1377,36 @@ document.addEventListener('DOMContentLoaded', () => {
     // 12. Badge Helpers
     // ─────────────────────────────────────────────────────────────────────────
     function getPriorityBadge(priority = '') {
-        const p = priority.toLowerCase();
-        let cls = 'badge-info';
-        if (p === 'high')   cls = 'badge-danger';
-        else if (p === 'medium') cls = 'badge-warning';
-        return `<span class="badge ${cls}">${escapeHtml(capitalize(priority || 'Normal'))}</span>`;
+        const p = (priority || '').toLowerCase();
+        let dot = '🟢';
+        let style = 'background:#dcfce7;color:#166534;border:1px solid #bbf7d0;';
+        if (p === 'high') {
+            dot = '🔴';
+            style = 'background:#fee2e2;color:#991b1b;border:1px solid #fecaca;';
+        } else if (p === 'medium') {
+            dot = '🟡';
+            style = 'background:#fef3c7;color:#92400e;border:1px solid #fde68a;';
+        }
+        return `<span class="badge-priority" style="${style}"><span>${dot}</span> <span>${escapeHtml(capitalize(priority || 'Normal'))}</span></span>`;
     }
 
     function getStatusBadge(status = '') {
         const s = (status || '').toLowerCase().replace('_', '-');
-        let cls = 'badge-warning';
+        let cls = 'pending';
         let label = 'Pending';
-        let extraStyle = '';
+        let icon = '⏳';
         if (s === 'in-progress' || s === 'in progress') {
-            cls = 'badge-info'; label = 'In Progress';
+            cls = 'in-progress'; label = 'In Progress'; icon = '⚡';
         } else if (s === 'completed') {
-            cls = 'badge-success'; label = 'Completed';
+            cls = 'completed'; label = 'Completed'; icon = '✓';
         } else if (s === 'cancelled') {
-            cls = 'badge-danger'; label = 'Cancelled';
+            cls = 'rejected'; label = 'Cancelled'; icon = '⊘';
         } else if (s === 'rejected') {
-            cls = 'badge-danger'; label = 'Rejected';
-            extraStyle = 'background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;';
+            cls = 'rejected'; label = 'Rejected'; icon = '✕';
         } else if (s === 'aborted') {
-            cls = 'badge-warning'; label = 'Aborted';
-            extraStyle = 'background:#FED7AA;color:#9A3412;border:1px solid #FDBA74;font-weight:600;';
-        } else {
-            // pending
-            extraStyle = 'background:#FEF08A;color:#854D0E;border:1px solid #FDE047;font-weight:600;';
+            cls = 'aborted'; label = 'Aborted'; icon = '⊗';
         }
-        return `<span class="badge ${cls}" style="${extraStyle}">${escapeHtml(label)}</span>`;
+        return `<span class="badge-pill-status ${cls}"><span>${icon}</span> <span>${label}</span></span>`;
     }
 
     function capitalize(str = '') {
@@ -1337,7 +1449,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.quickCompleteTask = async function(taskId) {
-        if (!confirm('Are you sure you want to mark this task as completed?')) return;
+        const ok = typeof window.showConfirm === 'function'
+            ? await window.showConfirm('Are you sure you want to mark this task as completed?')
+            : confirm('Are you sure you want to mark this task as completed?');
+        if (!ok) return;
         try {
             if (typeof completeTask === 'function') {
                 await completeTask(taskId);
@@ -1350,6 +1465,144 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTasks();
         } catch (err) {
             alert('Could not complete task: ' + (err.message || err));
+        }
+    };
+
+
+    // ── Global Time Tracking & Timesheet Handlers ──────────────────
+    function formatTimeDuration(seconds) {
+        if (!seconds || seconds <= 0) return '0h 00m';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        if (h > 0) return `${h}h ${m < 10 ? '0' : ''}${m}m`;
+        if (m > 0) return `${m}m ${s < 10 ? '0' : ''}${s}s`;
+        return `${s}s`;
+    }
+
+    window.handleToggleTaskTimer = async function (event, taskId, isRunning) {
+        if (event) event.stopPropagation();
+
+        const endpoint = isRunning ? `/tasks/${taskId}/timer/stop/` : `/tasks/${taskId}/timer/start/`;
+        try {
+            const res = await apiRequest(endpoint, {
+                method: 'POST',
+                body: JSON.stringify({})
+            });
+
+            if (res.ok) {
+                const msg = isRunning ? (res.data?.message || 'Timer stopped.') : 'Timer started!';
+                if (typeof showToast === 'function') showToast(msg);
+                else alert(msg);
+
+                if (typeof fetchTasksFromAPI === 'function') {
+                    await fetchTasksFromAPI();
+                    renderTasks();
+                }
+
+                if (window.currentDrawerTaskId === taskId && typeof loadTimeEntries === 'function') {
+                    loadTimeEntries(taskId);
+                }
+            } else {
+                alert(res.data?.message || 'Could not update timer.');
+            }
+        } catch (err) {
+            alert('Timer error: ' + (err.message || err));
+        }
+    };
+
+    window.openTimesheetModal = function () {
+        const modal = document.getElementById('timesheetModal');
+        if (modal) {
+            modal.hidden = false;
+            modal.style.display = 'flex';
+            window.loadTimesheet('weekly');
+        }
+    };
+
+    window.closeTimesheetModal = function () {
+        const modal = document.getElementById('timesheetModal');
+        if (modal) {
+            modal.hidden = true;
+            modal.style.display = 'none';
+        }
+    };
+
+    window.loadTimesheet = async function (period) {
+        const contentEl = document.getElementById('timesheetContent');
+        const badgeEl = document.getElementById('timesheetTotalHoursBadge');
+        if (!contentEl) return;
+
+        // Update active button state
+        document.querySelectorAll('.timesheet-period-btn').forEach(b => {
+            b.classList.remove('btn-primary');
+            b.classList.add('btn-secondary');
+        });
+        const activeBtn = document.getElementById(
+            period === 'daily' ? 'periodDailyBtn' : (period === 'monthly' ? 'periodMonthlyBtn' : 'periodWeeklyBtn')
+        );
+        if (activeBtn) {
+            activeBtn.classList.remove('btn-secondary');
+            activeBtn.classList.add('btn-primary');
+        }
+
+        contentEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--color-text-muted);">Loading timesheet data…</div>';
+
+        try {
+            const res = await apiRequest(`/tasks/timesheet/?period=${encodeURIComponent(period)}`);
+            if (!res.ok) {
+                contentEl.innerHTML = `<div style="text-align:center;padding:1.5rem;color:#dc2626;">${escapeHtml(res.data?.message || 'Failed to load timesheet.')}</div>`;
+                return;
+            }
+
+            const data = res.data?.data || res.data || {};
+            const totalHours = data.total_hours || 0;
+            if (badgeEl) badgeEl.textContent = `Total: ${totalHours} hrs`;
+
+            const dailyBreakdown = data.daily_breakdown || [];
+            if (dailyBreakdown.length === 0) {
+                contentEl.innerHTML = `
+                    <div style="text-align:center;padding:2rem;color:var(--color-text-muted);">
+                        <p style="font-size:1.5rem;margin-bottom:6px;">⏱️</p>
+                        <p>No time logged for this period (${data.start_date} to ${data.end_date}).</p>
+                    </div>`;
+                return;
+            }
+
+            let html = '';
+            dailyBreakdown.forEach(day => {
+                const dayDate = new Date(day.date + 'T00:00:00');
+                const dayTitle = dayDate.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+                html += `
+                    <div style="margin-bottom:14px;border:1px solid var(--color-border,#e2e8f0);border-radius:8px;overflow:hidden;">
+                        <div style="background:var(--color-bg-secondary,#f8fafc);padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--color-border,#e2e8f0);font-weight:600;font-size:0.85rem;">
+                            <span>📅 ${dayTitle}</span>
+                            <span style="color:#2563eb;font-family:monospace;">${day.total_hours} hrs</span>
+                        </div>
+                        <div style="padding:4px 0;">
+                `;
+
+                (day.tasks || []).forEach(t => {
+                    const dur = formatTimeDuration(t.seconds);
+                    html += `
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 14px;font-size:0.82rem;border-bottom:1px dashed var(--color-border,#f1f5f9);">
+                            <span>📌 <strong>${escapeHtml(t.task_title)}</strong></span>
+                            <span class="time-entry-dur">${dur}</span>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+
+            contentEl.innerHTML = html;
+
+        } catch (err) {
+            contentEl.innerHTML = `<div style="text-align:center;padding:1.5rem;color:#dc2626;">Error: ${escapeHtml(err.message || err)}</div>`;
         }
     };
 

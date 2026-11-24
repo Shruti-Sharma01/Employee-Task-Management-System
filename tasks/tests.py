@@ -665,3 +665,82 @@ class TaskWorkflowTests(TestCase):
             format="json"
         )
         self.assertEqual(resp2.status_code, status.HTTP_403_FORBIDDEN)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard and Export Tests
+# ---------------------------------------------------------------------------
+
+class DashboardViewsTest(TestCase):
+
+    def setUp(self):
+        self.admin = make_user("dashadmin", "dashadmin@test.com", role=User.Role.ADMIN)
+        self.manager_user = make_user("dashmgr", "dashmgr@test.com", role=User.Role.MANAGER)
+        self.mgr_emp = make_employee(self.manager_user, "EMPMGR01", designation="Manager")
+        self.emp_user = make_user("dashemp", "dashemp@test.com", role=User.Role.EMPLOYEE)
+        self.emp = make_employee(self.emp_user, "EMP0001", manager=self.mgr_emp)
+
+        make_task("Pending Task", assigned_to=self.emp, assigned_by=self.manager_user, status=Task.Status.PENDING)
+        make_task("In Progress Task", assigned_to=self.emp, assigned_by=self.manager_user, status=Task.Status.IN_PROGRESS)
+        make_task("Completed Task", assigned_to=self.emp, assigned_by=self.manager_user, status=Task.Status.COMPLETED)
+        make_task("Rejected Task", assigned_to=self.emp, assigned_by=self.manager_user, status=Task.Status.REJECTED)
+        make_task("Aborted Task", assigned_to=self.emp, assigned_by=self.manager_user, status=Task.Status.ABORTED)
+
+    def test_admin_dashboard_includes_in_progress_tasks(self):
+        client = auth_client(self.admin)
+        res = client.get("/api/dashboard/admin/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        data = res.data.get("data", res.data)
+        self.assertIn("in_progress_tasks", data)
+        self.assertEqual(data["in_progress_tasks"], 1)
+        self.assertEqual(data["pending_tasks"], 1)
+        self.assertEqual(data["completed_tasks"], 1)
+        self.assertEqual(data["total_tasks"], 5)
+
+    def test_manager_dashboard(self):
+        client = auth_client(self.manager_user)
+        res = client.get("/api/dashboard/manager/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        data = res.data.get("data", res.data)
+        self.assertIn("in_progress_tasks", data)
+        self.assertEqual(data["total_team_members"], 1)
+
+    def test_employee_dashboard(self):
+        client = auth_client(self.emp_user)
+        res = client.get("/api/dashboard/employee/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        data = res.data.get("data", res.data)
+        self.assertIn("in_progress_tasks", data)
+
+
+class TaskExportViewsTest(TestCase):
+
+    def setUp(self):
+        self.admin = make_user("exportadmin", "exportadmin@test.com", role=User.Role.ADMIN)
+        self.emp_user = make_user("exportemp", "exportemp@test.com", role=User.Role.EMPLOYEE)
+        self.emp = make_employee(self.emp_user, "EXP0001")
+
+        make_task("CSV Task", assigned_to=self.emp, assigned_by=self.admin, status=Task.Status.PENDING)
+        make_task("Excel Task", assigned_to=self.emp, assigned_by=self.admin, status=Task.Status.REJECTED)
+        make_task("PDF Task", assigned_to=self.emp, assigned_by=self.admin, status=Task.Status.ABORTED)
+
+    def test_export_csv(self):
+        client = auth_client(self.admin)
+        res = client.get("/api/tasks/export/csv/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn("text/csv", res["Content-Type"])
+        self.assertIn("CSV Task", res.content.decode("utf-8"))
+
+    def test_export_excel(self):
+        client = auth_client(self.admin)
+        res = client.get("/api/tasks/export/excel/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn("spreadsheetml.sheet", res["Content-Type"])
+        self.assertGreater(len(res.content), 100)
+
+    def test_export_pdf(self):
+        client = auth_client(self.admin)
+        res = client.get("/api/tasks/export/pdf/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res["Content-Type"], "application/pdf")
+        self.assertGreater(len(res.content), 100)
